@@ -1,0 +1,9 @@
+
+Bucket ID: 8cd44cb510801c9cab0c081b
+Endpoint: s3.us-east-005.backblazeb2.com 
+bucketName: keyboard-driver-demo
+keyID: 005c4c500ccbc8b0000000004
+applicationKey: K005dMC+IgMZyVwGQlHnRMDanvNkth0
+
+
+

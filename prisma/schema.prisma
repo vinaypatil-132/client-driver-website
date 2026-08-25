@@ -1,0 +1,40 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Product {
+  id          String     @id @default(cuid())
+  name        String
+  description String
+  price       Float
+  createdAt   DateTime   @default(now())
+  licenses    License[]
+  purchases   Purchase[]
+}
+
+model Purchase {
+  id        String   @id @default(cuid())
+  email     String
+  productId String
+  status    String   @default("COMPLETED")
+  createdAt DateTime @default(now())
+  product   Product  @relation(fields: [productId], references: [id])
+}
+
+model License {
+  id               String    @id @default(cuid())
+  email            String
+  productId        String
+  licenseKey       String    @unique
+  status           String    @default("ACTIVE")
+  createdAt        DateTime  @default(now())
+  activatedAt      DateTime?
+  activationStatus String    @default("UNACTIVATED")
+  machineId        String?
+  product          Product   @relation(fields: [productId], references: [id])
+}
