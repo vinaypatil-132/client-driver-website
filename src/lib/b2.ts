@@ -1,6 +1,5 @@
-import { S3Client, GetObjectCommand, PutObjectCommand, HeadObjectCommand } from '@aws-sdk/client-s3';
+import { S3Client, GetObjectCommand, PutObjectCommand } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
-
 import fs from 'fs';
 import path from 'path';
 
@@ -35,12 +34,13 @@ function loadEnvFileFallback() {
 
 loadEnvFileFallback();
 
-export type SupportedPlatform = 'LINUX' | 'WINDOWS';
+export type SupportedPlatform = 'WINDOWS';
 
 export interface PackageDefinition {
   id: string;
   platform: SupportedPlatform;
   product: string;
+  productName: string;
   version: string;
   filename: string;
   key: string;
@@ -49,58 +49,55 @@ export interface PackageDefinition {
   isAvailable: boolean;
 }
 
-export const LINUX_PACKAGE_DEFINITIONS = {
-  package1: {
-    id: 'demo-package-1',
-    platform: 'LINUX' as SupportedPlatform,
-    product: 'KEYBOARD-DRIVER-DEMO',
-    version: '1.0.0',
-    filename: 'demo-package-1.deb',
-    key: 'demo/driver/demo-package-1.deb',
-    sha256: '97502242d2ee1ee004f91832dcb530e6fc090a166e33972268cd5c90e6e4c123',
-    contentType: 'application/vnd.debian.binary-package',
-    isAvailable: true,
-  },
-  package2: {
-    id: 'demo-package-2',
-    platform: 'LINUX' as SupportedPlatform,
-    product: 'KEYBOARD-DRIVER-DEMO',
-    version: '1.0.0',
-    filename: 'demo-package-2.deb',
-    key: 'demo/driver/demo-package-2.deb',
-    sha256: 'c305e367e867f1d1613a52bc4ca0e2ea9e64cd9f4779bd2849f9eeb969b5f440',
-    contentType: 'application/vnd.debian.binary-package',
-    isAvailable: true,
-  },
-  package3: {
-    id: 'demo-package-3',
-    platform: 'LINUX' as SupportedPlatform,
-    product: 'KEYBOARD-DRIVER-DEMO',
-    version: '1.0.0',
-    filename: 'demo-package-3.deb',
-    key: 'demo/driver/demo-package-3.deb',
-    sha256: '26356da90eaf9a949c199f7d87a2b4b80587069c834f870e7f3c8babfc3824d6',
-    contentType: 'application/vnd.debian.binary-package',
-    isAvailable: true,
-  },
-} as const;
-
 export const WINDOWS_PACKAGE_DEFINITIONS = {
-  kbfiltrDriver: {
-    id: 'kbfiltr-driver-package',
+  brahmiTamilGranthaDriver: {
+    id: 'brahmi-tamil-grantha-driver-package',
     platform: 'WINDOWS' as SupportedPlatform,
-    product: 'KEYBOARD-DRIVER-DEMO',
-    version: '1.0.0',
-    filename: 'kbfiltr-driver-package.zip',
-    key: 'demo/driver/windows/kbfiltr-driver-package.zip',
-    sha256: 'e7a1dbfee2bd6a941a5551ae18a0a96d22d23b75082d26adfdf9cda4f52d8583',
+    product: 'NAV-BRAHMI-TAMIL-GRANTHA-2026',
+    productName: 'Nav Brahmi — Brahmi Tamil Grantha (2026)',
+    version: '2026.1.0',
+    filename: 'brahmi-tamil-grantha-driver-package.zip',
+    key: 'driver/windows/brahmi-tamil-grantha-driver-package.zip',
+    sha256: '60e0c8056daf73a780305085419784945e328d66e212c35e5676f12c96cb7e07',
+    contentType: 'application/zip',
+    isAvailable: true,
+  },
+  kharoshthiDriver: {
+    id: 'kharoshthi-driver-package',
+    platform: 'WINDOWS' as SupportedPlatform,
+    product: 'NAV-BRAHMI-KHAROSHTHI',
+    productName: 'Nav Brahmi — Kharoshthi',
+    version: '2026.1.0',
+    filename: 'kharoshthi-driver-package.zip',
+    key: 'driver/windows/kharoshthi-driver-package.zip',
+    sha256: '2c8a6c0cb689b3c7fae78d39ddd6bd35c57d828e3c06fe9899a4f40cb647fd95',
     contentType: 'application/zip',
     isAvailable: true,
   },
 } as const;
 
-// Backward-compatibility export matching existing code
-export const PACKAGE_DEFINITIONS = LINUX_PACKAGE_DEFINITIONS;
+let cachedClockOffsetMs: number | null = null;
+let lastClockSyncTime = 0;
+
+async function getB2ServerDate(endpoint: string): Promise<Date> {
+  const now = Date.now();
+  if (cachedClockOffsetMs !== null && now - lastClockSyncTime < 300000) {
+    return new Date(now + cachedClockOffsetMs);
+  }
+
+  try {
+    const res = await fetch(endpoint, { method: 'HEAD' });
+    const dateHeader = res.headers.get('date');
+    if (dateHeader) {
+      const serverTime = new Date(dateHeader).getTime();
+      cachedClockOffsetMs = serverTime - now;
+      lastClockSyncTime = now;
+      return new Date(serverTime);
+    }
+  } catch {}
+
+  return new Date();
+}
 
 export function getB2Config() {
   const endpoint = process.env.B2_ENDPOINT || 'https://s3.us-east-005.backblazeb2.com';
@@ -132,125 +129,100 @@ export function createB2Client() {
       accessKeyId: config.keyId,
       secretAccessKey: config.applicationKey,
     },
-    // Force path-style addressing for S3-compatible Backblaze B2 endpoints
     forcePathStyle: true,
   });
 }
 
 /**
- * Generates short-lived presigned GET URLs for packages based on target platform.
+ * Finds the specific package definition matching a given product identifier (ID, name, or product code).
+ */
+export function resolvePackageDefinition(productIdentifier?: string): PackageDefinition {
+  if (!productIdentifier) {
+    return WINDOWS_PACKAGE_DEFINITIONS.brahmiTamilGranthaDriver;
+  }
+
+  const normalized = productIdentifier.toLowerCase().trim();
+
+  if (
+    normalized.includes('kharoshthi') ||
+    normalized.includes('kharoshi') ||
+    normalized === 'nav-brahmi-kharoshthi' ||
+    normalized === 'kharoshthi-driver-package'
+  ) {
+    return WINDOWS_PACKAGE_DEFINITIONS.kharoshthiDriver;
+  }
+
+  return WINDOWS_PACKAGE_DEFINITIONS.brahmiTamilGranthaDriver;
+}
+
+/**
+ * Generates short-lived presigned GET URLs for the authorized package based on target platform and product.
  * Default expiration: 15 minutes (900 seconds).
  */
-export async function generatePresignedPackageUrls(expiresInSeconds = 900, platform: SupportedPlatform = 'LINUX') {
+export async function generatePresignedPackageUrls(
+  expiresInSeconds = 900,
+  platform: string = 'WINDOWS',
+  productIdentifier?: string
+) {
   const config = getB2Config();
   const client = createB2Client();
 
-  if (platform === 'WINDOWS') {
-    const winDef = WINDOWS_PACKAGE_DEFINITIONS.kbfiltrDriver;
-    if (!winDef.isAvailable || winDef.sha256.startsWith('PENDING')) {
-      return {
-        platform: 'WINDOWS',
-        package_status: 'PENDING_WINDOWS_BUILD',
-        message: 'Windows driver package is not yet built or uploaded to Backblaze B2.',
-        download_urls: {},
-        checksums: {},
-        packages: {},
-      };
-    }
+  const pkgDef = resolvePackageDefinition(productIdentifier);
 
-    const presignedUrl = await getSignedUrl(
-      client,
-      new GetObjectCommand({
-        Bucket: config.bucketName,
-        Key: winDef.key,
-      }),
-      { expiresIn: expiresInSeconds }
-    );
-
+  if (!pkgDef.isAvailable || pkgDef.sha256.startsWith('PENDING')) {
     return {
       platform: 'WINDOWS',
-      package_status: 'READY',
-      download_urls: {
-        driverPackage: presignedUrl,
-      },
-      checksums: {
-        driverPackage: winDef.sha256,
-      },
-      packages: {
-        'kbfiltr-driver-package': {
-          url: presignedUrl,
-          sha256: winDef.sha256,
-          filename: winDef.filename,
-        },
-      },
+      product: pkgDef.product,
+      product_name: pkgDef.productName,
+      package_status: 'UNAVAILABLE',
+      message: `Package for ${pkgDef.productName} is currently unavailable.`,
+      download_urls: {},
+      checksums: {},
+      packages: {},
     };
   }
 
-  // LINUX (Default)
-  const [url1, url2, url3] = await Promise.all([
-    getSignedUrl(
-      client,
-      new GetObjectCommand({
-        Bucket: config.bucketName,
-        Key: LINUX_PACKAGE_DEFINITIONS.package1.key,
-      }),
-      { expiresIn: expiresInSeconds }
-    ),
-    getSignedUrl(
-      client,
-      new GetObjectCommand({
-        Bucket: config.bucketName,
-        Key: LINUX_PACKAGE_DEFINITIONS.package2.key,
-      }),
-      { expiresIn: expiresInSeconds }
-    ),
-    getSignedUrl(
-      client,
-      new GetObjectCommand({
-        Bucket: config.bucketName,
-        Key: LINUX_PACKAGE_DEFINITIONS.package3.key,
-      }),
-      { expiresIn: expiresInSeconds }
-    ),
-  ]);
+  const signingDate = await getB2ServerDate(config.endpoint);
+
+  const presignedUrl = await getSignedUrl(
+    client,
+    new GetObjectCommand({
+      Bucket: config.bucketName,
+      Key: pkgDef.key,
+    }),
+    { expiresIn: expiresInSeconds, signingDate }
+  );
 
   return {
-    platform: 'LINUX',
+    platform: 'WINDOWS',
+    product: pkgDef.product,
+    product_name: pkgDef.productName,
     package_status: 'READY',
     download_urls: {
-      package1: url1,
-      package2: url2,
-      package3: url3,
+      driverPackage: presignedUrl,
     },
     checksums: {
-      package1: LINUX_PACKAGE_DEFINITIONS.package1.sha256,
-      package2: LINUX_PACKAGE_DEFINITIONS.package2.sha256,
-      package3: LINUX_PACKAGE_DEFINITIONS.package3.sha256,
+      driverPackage: pkgDef.sha256,
     },
     packages: {
-      'demo-package-1': {
-        url: url1,
-        sha256: LINUX_PACKAGE_DEFINITIONS.package1.sha256,
-      },
-      'demo-package-2': {
-        url: url2,
-        sha256: LINUX_PACKAGE_DEFINITIONS.package2.sha256,
-      },
-      'demo-package-3': {
-        url: url3,
-        sha256: LINUX_PACKAGE_DEFINITIONS.package3.sha256,
+      [pkgDef.id]: {
+        url: presignedUrl,
+        sha256: pkgDef.sha256,
+        filename: pkgDef.filename,
+        product: pkgDef.product,
+        product_name: pkgDef.productName,
       },
     },
   };
 }
 
 /**
- * Uploads a Debian package buffer to the private B2 bucket under its designated key.
+ * Uploads a package buffer to the private B2 bucket under its designated key.
  */
 export async function uploadPackageToB2(
   key: string,
   body: Buffer,
-  contentType = 'application/vnd.debian.binary-package'
+  contentType = 'application/zip'
 ) {
   const config = getB2Config();
   const client = createB2Client();

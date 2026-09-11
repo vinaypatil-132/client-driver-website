@@ -1,5 +1,5 @@
 {
-  "name": "licensed-software-demo",
+  "name": "nav-brahmi-licensed-installer",
   "version": "1.0.0",
   "private": true,
   "scripts": {
@@ -12,9 +12,11 @@
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate dev",
     "prisma:seed": "tsx prisma/seed.ts",
+    "package:drivers": "tsx scripts/package-drivers.ts",
+    "build:bootstrapper": "tsx scripts/build-bootstrapper.ts",
+    "sync:b2": "tsx scripts/sync-b2-packages.ts",
     "upload:windows-package": "tsx scripts/upload-windows-package.ts",
-    "test:windows-prep": "tsx scripts/test-windows-prep.ts",
-    "test:bootstrapper": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/test-bootstrapper-pnputil.ps1"
+    "test:windows-prep": "tsx scripts/test-windows-prep.ts"
   },
   "prisma": {
     "seed": "tsx prisma/seed.ts"

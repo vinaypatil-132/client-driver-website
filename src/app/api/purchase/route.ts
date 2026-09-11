@@ -2,9 +2,11 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { isValidEmail, generateSecureLicenseKey } from '@/lib/license';
 
+export const dynamic = 'force-dynamic';
+
 export async function POST(req: NextRequest) {
   try {
-    let body: { email?: string; productId?: string };
+    let body: { email?: string; productId?: string; productName?: string };
     try {
       body = await req.json();
     } catch {
@@ -16,6 +18,7 @@ export async function POST(req: NextRequest) {
 
     const email = body.email?.trim().toLowerCase();
     const requestedProductId = body.productId?.trim();
+    const requestedProductName = body.productName?.trim();
 
     if (!email) {
       return NextResponse.json(
@@ -31,7 +34,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Find the requested product or default demo product
+    // Find the requested product
     let product;
     if (requestedProductId) {
       product = await prisma.product.findUnique({
@@ -39,15 +42,26 @@ export async function POST(req: NextRequest) {
       });
     }
 
-    if (!product) {
+    if (!product && requestedProductName) {
       product = await prisma.product.findFirst({
-        where: { name: { contains: 'Keyboard Driver' } },
+        where: { name: { contains: requestedProductName, mode: 'insensitive' } },
       });
     }
 
     if (!product) {
+      // Default to Brahmi Tamil Grantha
+      product = await prisma.product.findFirst({
+        where: { name: { contains: 'Brahmi' } },
+      });
+    }
+
+    if (!product) {
+      product = await prisma.product.findFirst();
+    }
+
+    if (!product) {
       return NextResponse.json(
-        { success: false, error: 'Demo product not found in database.' },
+        { success: false, error: 'No active products found in database.' },
         { status: 404 }
       );
     }
@@ -61,7 +75,7 @@ export async function POST(req: NextRequest) {
         data: {
           email,
           productId: product.id,
-          status: 'COMPLETED', // Mock simulated payment success
+          status: 'COMPLETED',
         },
       }),
       prisma.license.create({

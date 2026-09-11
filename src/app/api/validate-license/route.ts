@@ -2,9 +2,11 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { generatePresignedPackageUrls } from '@/lib/b2';
 
+export const dynamic = 'force-dynamic';
+
 export async function POST(req: NextRequest) {
   try {
-    let body: { license_key?: string; platform?: 'LINUX' | 'WINDOWS' };
+    let body: { license_key?: string; platform?: string };
     try {
       body = await req.json();
     } catch {
@@ -15,8 +17,6 @@ export async function POST(req: NextRequest) {
     }
 
     const licenseKey = body.license_key?.trim();
-    const targetPlatform: 'LINUX' | 'WINDOWS' =
-      body.platform?.toUpperCase() === 'WINDOWS' ? 'WINDOWS' : 'LINUX';
 
     if (!licenseKey) {
       return NextResponse.json(
@@ -25,7 +25,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Lookup license in PostgreSQL database
+    // Lookup license in Supabase PostgreSQL database
     const license = await prisma.license.findUnique({
       where: { licenseKey },
       include: {
@@ -51,16 +51,22 @@ export async function POST(req: NextRequest) {
       });
     }
 
-    // Generate short-lived presigned URLs for packages based on requested platform
-    const packageUrls = await generatePresignedPackageUrls(900, targetPlatform); // 15-minute expiration
+    // Generate short-lived presigned URLs for the product's authorized package
+    const packageUrls = await generatePresignedPackageUrls(
+      900,
+      'WINDOWS',
+      license.product?.name || license.productId
+    );
 
-    // Return authoritative information directly from database and B2 presigner
     return NextResponse.json(
       {
         valid: true,
         license_id: license.id,
         email: license.email,
-        platform: targetPlatform,
+        platform: 'WINDOWS',
+        product_id: license.productId,
+        product_name: license.product?.name,
+        product_code: packageUrls.product,
         package_status: packageUrls.package_status,
         message: packageUrls.message,
         download_urls: packageUrls.download_urls,

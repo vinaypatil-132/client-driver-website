@@ -18,7 +18,7 @@ This skill defines the architectural rules, security boundaries, and development
 - **Licensing Engine**: Server-side cryptographically secure key generation and email purchase tracking (Zero-Account architecture; no usernames/passwords).
 - **Activation & Machine Binding**: Asymmetric cryptographic token signing (Ed25519) binding licenses to Windows hardware/OS identity (`MachineGuid` + `System UUID`).
 - **Windows Bootstrapper**: Native PowerShell bootstrapper (`Requirements/windows-driver/setup.ps1`) and CMD launcher (`setup.bat`).
-- **Driver Layer**: Official Microsoft Keyboard Filter Driver (`kbfiltr`) source in `Requirements/windows-kbfiltr/` used as a harmless demonstration driver.
+- **Driver Layer**: Authentic Nav Brahmi MSKLC Keyboard Layout Drivers (`Brahmi Tamil Grantha (2026)` and `Kharoshthi`) with unicode font assets.
 
 ---
 
@@ -26,7 +26,7 @@ This skill defines the architectural rules, security boundaries, and development
 
 ```
 1. Customer Purchase (Storefront)
-   └─ Enter email → POST /api/purchase (Server creates license record in Supabase PostgreSQL)
+   └─ Enter email & select product → POST /api/purchase (Server creates license record in Supabase PostgreSQL)
    
 2. License Issued & Installer Obtained
    └─ Storefront presents license key & provides Windows bootstrapper (GET /api/download-installer?platform=windows)
@@ -46,8 +46,8 @@ This skill defines the architectural rules, security boundaries, and development
 6. Cryptographic Integrity Verification (Bootstrapper)
    └─ setup.ps1 calculates local SHA-256 hash and verifies against authoritative server checksum
 
-7. Windows Driver Package Installation (Bootstrapper)
-   └─ setup.ps1 extracts verified package and installs driver using pnputil.exe (/add-driver <inf> /install)
+7. Windows Driver Package & Font Installation (Bootstrapper)
+   └─ setup.ps1 extracts verified package, installs driver MSI for host architecture, and registers unicode fonts
 
 8. Local Token Persistence & Offline Enforcement
    └─ setup.ps1 saves signed activation token to Program Files (or application directory)
@@ -73,22 +73,9 @@ This skill defines the architectural rules, security boundaries, and development
 
 ### Machine-Bound Identity
 - **Stable Hardware/OS Binding**: Windows machine identity is derived from `HKLM\SOFTWARE\Microsoft\Cryptography\MachineGuid` combined with `Win32_ComputerSystemProduct` UUID.
-- **No IP Reliance**: Never use IP addresses, network interfaces, or MAC addresses as primary machine identity bindings (as they change across networks and VPNs).
+- **No IP Reliance**: Never use IP addresses, network interfaces, or MAC addresses as primary machine identity bindings.
 
 ### Driver & Binary Integrity
-- **No Fabricated Binaries**: Never create dummy or fabricated `.sys` kernel driver binaries manually on Linux or without Microsoft WDK compilation tools.
-- **Protected Client Drivers**: Do not modify any real client driver (such as Nav Brahmi) unless explicitly requested and approved.
-- **Controlled Package Uploads**: Never upload Windows driver packages to Backblaze B2 automatically. Uploads must only happen via `scripts/upload-windows-package.ts` after the real driver package has been built with Visual Studio 2022 + WDK and verified on Windows 11.
-- **Demonstration Driver**: Microsoft `kbfiltr` is solely a harmless baseline demonstration driver for testing the installation and licensing architecture.
-
----
-
-## 4. Development & Testing Rules
-
-1. **Windows-Only Workflow**: All development, scripts, and tests are maintained and executed on Windows. Do not re-introduce Ubuntu-specific assumptions or dependencies (`dpkg`, `/etc/machine-id`, `/opt/`).
-2. **Preserve Existing Functionality**: Maintain the working Next.js frontend, Supabase database, Backblaze B2 presigning, Ed25519 signing, and PowerShell bootstrapper workflows.
-3. **No User Accounts**: Maintain the zero-account architecture (no user logins, passwords, or session cookies). Email is directly linked to the license.
-4. **Test After Meaningful Changes**:
-   - Run `npm run test:windows-prep` to verify Windows machine identity, licensing APIs, database binding, and bootstrapper delivery.
-   - Run `setup.ps1` to test end-to-end bootstrapper installation flow against the local or remote server.
-5. **Minimal & Reversible Changes**: Keep changes modular and focused. Never delete files unless verified completely unused.
+- **Confidentiality**: Real client driver files and binaries are confidential client assets. Do not expose or modify unnecessarily.
+- **No Fabricated Binaries**: Never create dummy or fabricated binaries manually.
+- **Controlled Package Uploads**: Uploads occur via `scripts/sync-b2-packages.ts` or `scripts/upload-windows-package.ts` with authoritative SHA-256 validation.

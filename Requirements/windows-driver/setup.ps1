@@ -1,18 +1,20 @@
 <#
 .SYNOPSIS
-    Windows Bootstrapper / Installer for Licensed Software & Driver Package
+    Windows Bootstrapper / Installer for Licensed Nav Brahmi Driver Packages
 .DESCRIPTION
-    Production-grade Windows 11 bootstrapper script that cleanly separates:
-      1. Licensing: Validates license key with backend over HTTPS.
-      2. Activation: Generates stable Windows machine identity (MachineGUID + System UUID) and retrieves signed Ed25519 token.
-      3. Package Download: Requests presigned Backblaze B2 URLs and verifies SHA-256 checksums.
-      4. Driver Installation: Installs Windows driver package using Pnputil / SetupAPI when package exists.
+    Production-grade Windows 11 bootstrapper script that cleanly handles:
+      1. Machine Identity: Derives stable hardware/OS binding (MachineGuid + System UUID).
+      2. Licensing: Validates license key with backend over HTTPS.
+      3. Activation: Obtains asymmetric cryptographically signed Ed25519 token.
+      4. Secure Download: Requests presigned Backblaze B2 URLs and verifies SHA-256 checksums.
+      5. Driver & Font Installation: Installs authentic Windows keyboard layout drivers (MSI/DLLs) and unicode fonts.
+      6. Security & Cleanup: Operates with strict URL security and cleans up all temporary artifacts.
 .PARAMETER LicenseKey
     License key for validation and machine activation.
 .PARAMETER BackendUrl
     Base URL of the license server backend.
 .PARAMETER MachineOverride
-    DEMO ONLY: Simulated machine ID for testing identity isolation.
+    DEMO/TEST ONLY: Simulated machine ID for testing identity isolation.
 #>
 
 [CmdletBinding()]
@@ -37,7 +39,7 @@ $ErrorActionPreference = "Stop"
 function Show-Help {
     Write-Host @"
 =============================================================================
- Windows Licensed Driver Package Installer (Bootstrapper)
+ Nav Brahmi Windows Licensed Driver Installer (Bootstrapper)
 =============================================================================
 
 Usage:
@@ -46,14 +48,14 @@ Usage:
 Options:
   -LicenseKey, -k <KEY>     License key for validation (or set env var LICENSE_KEY)
   -BackendUrl, -b <URL>     Backend URL (or set env var BACKEND_URL)
-  -MachineOverride, -m <ID> DEMO ONLY: Simulated machine ID override
+  -MachineOverride, -m <ID> TEST ONLY: Simulated machine ID override
   -Help                     Display this help message
 
-Security & Binding Architecture:
+Security & Architecture:
   - HTTPS required for all remote backend endpoints.
-  - License is bound cryptographically to Windows MachineGUID / System UUID.
-  - All package downloads are SHA-256 verified against authoritative server checksums.
-  - Driver installation via Pnputil (requires Administrator privilege).
+  - Machine binding cryptographically locked to Windows MachineGuid / System UUID.
+  - Package downloads verified via authoritative SHA-256 checksums.
+  - Installs authentic Nav Brahmi keyboard layout drivers and unicode fonts.
 "@
 }
 
@@ -132,9 +134,9 @@ function Get-WindowsMachineIdentity([string]$Override) {
 # MODULE 2: LICENSING (LICENSE VALIDATION & DOWNLOAD AUTHORIZATION)
 # ---------------------------------------------------------------------------
 function Invoke-LicenseValidation([string]$Key, [string]$BaseUrl) {
-    Write-LogInfo "Contacting backend to validate Windows license..."
+    Write-LogInfo "Contacting backend to validate license..."
     $endpoint = "$BaseUrl/api/validate-license"
-    
+
     $bodyJson = @{
         license_key = $Key
         platform    = "WINDOWS"
@@ -152,14 +154,14 @@ function Invoke-LicenseValidation([string]$Key, [string]$BaseUrl) {
 # ---------------------------------------------------------------------------
 # MODULE 3: ACTIVATION (MACHINE ACTIVATION & SIGNED TOKEN RECEIPT)
 # ---------------------------------------------------------------------------
-function Invoke-MachineActivation([string]$Key, [string]$MachineId, [string]$BaseUrl) {
+function Invoke-MachineActivation([string]$Key, [string]$MachineId, [string]$ProductCode, [string]$BaseUrl) {
     Write-LogInfo "Activating license for Windows machine identity ($MachineId)..."
     $endpoint = "$BaseUrl/api/activation"
 
     $bodyJson = @{
         license_key  = $Key
         machine_id   = $MachineId
-        product_code = "KEYBOARD-DRIVER-DEMO"
+        product_code = $ProductCode
         platform     = "WINDOWS"
     } | ConvertTo-Json
 
@@ -192,30 +194,19 @@ function Invoke-MachineActivation([string]$Key, [string]$MachineId, [string]$Bas
 # MODULE 4: PACKAGE DOWNLOAD & CHECKSUM VERIFICATION
 # ---------------------------------------------------------------------------
 function Invoke-PackageDownloadAndVerification([object]$ValidationData, [string]$DestinationDir) {
-    if ($ValidationData.package_status -eq "PENDING_WINDOWS_BUILD" -or -not $ValidationData.packages -or $ValidationData.packages.Count -eq 0) {
-        Write-LogWarn "=================================================================="
-        Write-LogWarn " NOTICE: WINDOWS DRIVER PACKAGE IS PENDING WINDOWS 11 BUILD"
-        Write-LogWarn "=================================================================="
-        Write-LogWarn " Backend License Validation: PASSED"
-        Write-LogWarn " Machine Activation & Binding: PASSED"
-        Write-LogWarn " Package Status: PENDING_WINDOWS_BUILD"
-        Write-LogWarn " "
-        Write-LogWarn " Next Step:"
-        Write-LogWarn "   1. Boot Windows 11 & build kbfiltr solution in Visual Studio + WDK."
-        Write-LogWarn "   2. Copy generated package output into Requirements/windows-driver/."
-        Write-LogWarn "   3. Upload package to B2 using 'npm run upload:windows-package'."
-        Write-LogWarn "=================================================================="
-        return $null
+    if (-not $ValidationData.packages -or $ValidationData.packages.PSObject.Properties.Count -eq 0) {
+        Write-LogError "No package download metadata provided by backend."
+        exit 1
     }
 
-    Write-LogInfo "Downloading authorized Windows driver package files..."
+    Write-LogInfo "Downloading authorized Nav Brahmi driver package..."
     $downloadedFiles = @()
 
-    foreach ($pkgKey in $ValidationData.packages.PSObject.Properties.Name) {
-        $pkgInfo = $ValidationData.packages.$pkgKey
+    foreach ($pkgProp in $ValidationData.packages.PSObject.Properties) {
+        $pkgInfo = $pkgProp.Value
         $downloadUrl = $pkgInfo.url
         $expectedSha256 = $pkgInfo.sha256
-        $filename = if ($pkgInfo.filename) { $pkgInfo.filename } else { "$pkgKey.zip" }
+        $filename = if ($pkgInfo.filename) { $pkgInfo.filename } else { "$($pkgProp.Name).zip" }
 
         if (-not (Assert-UrlSecurity -Url $downloadUrl -ContextName "Package download ($filename)")) {
             exit 1
@@ -240,7 +231,7 @@ function Invoke-PackageDownloadAndVerification([object]$ValidationData, [string]
             Write-LogError "Aborting installation to prevent corrupted or tampered driver installation."
             exit 1
         }
-        Write-LogSuccess "Checksum verified for $filename ($actualSha256)"
+        Write-LogSuccess "Authoritative checksum verified for $filename ($actualSha256)"
         $downloadedFiles += $destFile
     }
 
@@ -248,60 +239,139 @@ function Invoke-PackageDownloadAndVerification([object]$ValidationData, [string]
 }
 
 # ---------------------------------------------------------------------------
-# MODULE 5: WINDOWS DRIVER PACKAGE INSTALLATION
+# MODULE 5: FONT INSTALLATION HELPER
 # ---------------------------------------------------------------------------
-function Invoke-WindowsDriverInstallation([string[]]$PackageFiles, [string]$TargetDir) {
-    if (-not $PackageFiles -or $PackageFiles.Count -eq 0) {
-        Write-LogInfo "[SCAFFOLD] No downloaded package files present (Pending Windows 11 Build)."
-        Write-LogInfo "[SCAFFOLD] Driver installation mechanism ready for Pnputil execution."
-        return [PSCustomObject]@{
-            Success        = $true
-            RebootRequired = $false
-            Scaffold       = $true
-        }
+function Install-FontFiles([string]$DirectoryPath, [bool]$IsAdmin) {
+    $fontFiles = Get-ChildItem -Path $DirectoryPath -Filter "*.ttf" -Recurse
+    if (-not $fontFiles -or $fontFiles.Count -eq 0) {
+        $fontFiles = Get-ChildItem -Path $DirectoryPath -Filter "*.otf" -Recurse
     }
 
-    Write-LogInfo "Extracting and installing Windows driver package..."
+    if (-not $fontFiles -or $fontFiles.Count -eq 0) {
+        return
+    }
+
+    foreach ($font in $fontFiles) {
+        Write-LogInfo "Installing font: $($font.Name)..."
+        try {
+            if ($IsAdmin) {
+                $targetPath = Join-Path "C:\Windows\Fonts" $font.Name
+                Copy-Item -Path $font.FullName -Destination $targetPath -Force -ErrorAction SilentlyContinue
+                $fontRegName = "$([System.IO.Path]::GetFileNameWithoutExtension($font.Name)) (TrueType)"
+                New-ItemProperty -Path "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Fonts" -Name $fontRegName -Value $font.Name -PropertyType String -Force -ErrorAction SilentlyContinue | Out-Null
+                Write-LogSuccess "Font registered system-wide: $($font.Name)"
+            } else {
+                $userFontDir = Join-Path $env:LOCALAPPDATA "Microsoft\Windows\Fonts"
+                if (-not (Test-Path $userFontDir)) {
+                    New-Item -ItemType Directory -Path $userFontDir -Force | Out-Null
+                }
+                $targetPath = Join-Path $userFontDir $font.Name
+                Copy-Item -Path $font.FullName -Destination $targetPath -Force -ErrorAction SilentlyContinue
+                $fontRegName = "$([System.IO.Path]::GetFileNameWithoutExtension($font.Name)) (TrueType)"
+                New-ItemProperty -Path "HKCU:\Software\Microsoft\Windows NT\CurrentVersion\Fonts" -Name $fontRegName -Value $targetPath -PropertyType String -Force -ErrorAction SilentlyContinue | Out-Null
+                Write-LogSuccess "Font registered in user profile: $($font.Name)"
+            }
+        } catch {
+            Write-LogWarn "Could not automatically register font $($font.Name): $_"
+        }
+    }
+}
+
+# ---------------------------------------------------------------------------
+# MODULE 6: NAV BRAHMI DRIVER PACKAGE INSTALLATION
+# ---------------------------------------------------------------------------
+function Invoke-NavBrahmiDriverInstallation([string[]]$PackageFiles, [string]$TargetDir) {
+    if (-not $PackageFiles -or $PackageFiles.Count -eq 0) {
+        throw "No package files provided for installation."
+    }
+
+    $isAdmin = ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
     $installedAny = $false
     $rebootRequired = $false
+    $arch = $env:PROCESSOR_ARCHITECTURE.ToLower()
 
     foreach ($pkgFile in $PackageFiles) {
-        if ($pkgFile.EndsWith(".zip", [System.StringComparison]::OrdinalIgnoreCase)) {
-            $extractDir = Join-Path $TargetDir "extracted_driver"
-            Expand-Archive -Path $pkgFile -DestinationPath $extractDir -Force
+        Write-LogInfo "Extracting driver package: $(Split-Path $pkgFile -Leaf)..."
+        $extractDir = Join-Path $TargetDir "extracted_driver_$([Guid]::NewGuid().ToString('N').Substring(0,6))"
+        Expand-Archive -Path $pkgFile -DestinationPath $extractDir -Force
 
-            # Search for .inf driver package manifest
-            $infFiles = Get-ChildItem -Path $extractDir -Filter "*.inf" -Recurse
-            if (-not $infFiles -or $infFiles.Count -eq 0) {
-                Write-LogError "No .inf driver manifest found inside package: $pkgFile"
-                throw "Driver package extraction failed: No .inf file found in $pkgFile"
+        # 1. Install Unicode Fonts
+        Install-FontFiles -DirectoryPath $extractDir -IsAdmin $isAdmin
+
+        # 2. Locate MSIs
+        $msiFiles = Get-ChildItem -Path $extractDir -Filter "*.msi" -Recurse
+        if (-not $msiFiles -or $msiFiles.Count -eq 0) {
+            Write-LogError "No .msi installer found inside driver package."
+            throw "Driver package extraction failed: No .msi installer found in $pkgFile"
+        }
+
+        # Select matching architecture MSI
+        $targetMsi = $null
+        if ($arch -eq "amd64" -or $arch -eq "x64" -or $arch -eq "arm64") {
+            $targetMsi = $msiFiles | Where-Object { $_.Name -like "*amd64*.msi" -or $_.Name -like "*x64*.msi" } | Select-Object -First 1
+        } elseif ($arch -eq "ia64") {
+            $targetMsi = $msiFiles | Where-Object { $_.Name -like "*ia64*.msi" } | Select-Object -First 1
+        } else {
+            $targetMsi = $msiFiles | Where-Object { $_.Name -like "*i386*.msi" -or $_.Name -like "*x86*.msi" } | Select-Object -First 1
+        }
+
+        if (-not $targetMsi) {
+            $targetMsi = $msiFiles | Select-Object -First 1
+        }
+
+        Write-LogInfo "Selected MSI installer for architecture ($arch): $($targetMsi.Name)"
+
+        if (-not $isAdmin) {
+            Write-LogWarn "=================================================================="
+            Write-LogWarn " ADMINISTRATOR ELEVATION REQUIRED FOR SYSTEM REGISTRATION"
+            Write-LogWarn "=================================================================="
+            Write-LogWarn " Registering Windows keyboard layout drivers into System32 requires"
+            Write-LogWarn " Administrator privileges."
+            Write-LogWarn " "
+            Write-LogWarn " Please run PowerShell as Administrator:"
+            Write-LogWarn "   Right-click PowerShell -> 'Run as administrator'"
+            Write-LogWarn "=================================================================="
+
+            # Attempt installation and catch elevation errors gracefully
+            $msiLog = Join-Path $TargetDir "msi_install.log"
+            $proc = Start-Process msiexec.exe -ArgumentList @('/i', "`"$($targetMsi.FullName)`"", '/qn', '/norestart', '/l*v', "`"$msiLog`"") -Wait -PassThru
+
+            if ($proc.ExitCode -eq 0) {
+                Write-LogSuccess "Driver package installed successfully."
+                $installedAny = $true
+            } elseif ($proc.ExitCode -eq 3010) {
+                Write-LogSuccess "Driver package installed successfully (reboot required)."
+                $installedAny = $true
+                $rebootRequired = $true
+            } elseif ($proc.ExitCode -eq 1603) {
+                Write-LogError "Installation was blocked due to insufficient permissions (Exit Code 1603: Access Denied)."
+                Write-LogError "Please re-run this installer from an elevated Administrator PowerShell prompt."
+                throw "Administrator elevation required to install keyboard layout driver to System32."
+            } else {
+                throw "Driver MSI installation failed with exit code $($proc.ExitCode)."
             }
+        } else {
+            # Running as Administrator
+            $msiLog = Join-Path $TargetDir "msi_install.log"
+            Write-LogInfo "Executing driver MSI installation..."
+            $proc = Start-Process msiexec.exe -ArgumentList @('/i', "`"$($targetMsi.FullName)`"", '/qn', '/norestart', '/l*v', "`"$msiLog`"") -Wait -PassThru
 
-            foreach ($inf in $infFiles) {
-                Write-LogInfo "Installing Windows driver package via Pnputil: $($inf.FullName)"
-                $pnpOutput = & pnputil /add-driver "$($inf.FullName)" /install 2>&1
-                $exitCode = $LASTEXITCODE
-                foreach ($line in $pnpOutput) {
-                    Write-Host "  [pnputil] $line" -ForegroundColor Gray
+            if ($proc.ExitCode -eq 0) {
+                Write-LogSuccess "Driver package installed and registered successfully."
+                $installedAny = $true
+            } elseif ($proc.ExitCode -eq 3010) {
+                Write-LogSuccess "Driver package installed successfully (system reboot required to finalize)."
+                $installedAny = $true
+                $rebootRequired = $true
+            } else {
+                if (Test-Path $msiLog) {
+                    $errSnippet = Get-Content $msiLog | Select-String -Pattern "Return value 3|Error [0-9]+" | Select-Object -First 3
+                    if ($errSnippet) {
+                        Write-LogError "MSI Error Details:"
+                        foreach ($line in $errSnippet) { Write-LogError "  $line" }
+                    }
                 }
-
-                if ($exitCode -eq 0) {
-                    Write-LogSuccess "Driver package installed successfully via Pnputil: $($inf.Name)"
-                    $installedAny = $true
-                } elseif ($exitCode -eq 3010) {
-                    Write-LogSuccess "Driver package installed successfully (system reboot required, code 3010): $($inf.Name)"
-                    $installedAny = $true
-                    $rebootRequired = $true
-                } else {
-                    Write-LogError "=================================================================="
-                    Write-LogError " DRIVER INSTALLATION FAILED VIA PNPUTIL"
-                    Write-LogError "=================================================================="
-                    Write-LogError " Target INF: $($inf.FullName)"
-                    Write-LogError " Exit Code:  $exitCode"
-                    Write-LogError " Error:      Pnputil returned unexpected exit code $exitCode"
-                    Write-LogError "=================================================================="
-                    throw "Pnputil driver installation failed with exit code $exitCode for $($inf.Name)"
-                }
+                throw "Driver MSI installation failed with exit code $($proc.ExitCode)."
             }
         }
     }
@@ -309,7 +379,6 @@ function Invoke-WindowsDriverInstallation([string[]]$PackageFiles, [string]$Targ
     return [PSCustomObject]@{
         Success        = $installedAny
         RebootRequired = $rebootRequired
-        Scaffold       = $false
     }
 }
 
@@ -343,19 +412,19 @@ if (-not (Assert-UrlSecurity -Url $BackendUrl -ContextName "Backend API")) {
 # ---------------------------------------------------------------------------
 # INSTALLATION WORKFLOW EXECUTION
 # ---------------------------------------------------------------------------
-$TempDir = Join-Path ([System.IO.Path]::GetTempPath()) "win_driver_install_$([Guid]::NewGuid().ToString('N').Substring(0,8))"
+$TempDir = Join-Path ([System.IO.Path]::GetTempPath()) "navbrahmi_install_$([Guid]::NewGuid().ToString('N').Substring(0,8))"
 New-Item -ItemType Directory -Path $TempDir -Force | Out-Null
 
 try {
     Write-Host "`n=============================================================================" -ForegroundColor Cyan
-    Write-Host " STARTING WINDOWS LICENSED SOFTWARE & DRIVER INSTALLATION" -ForegroundColor Cyan
+    Write-Host " STARTING NAV BRAHMI WINDOWS DRIVER & SOFTWARE INSTALLATION" -ForegroundColor Cyan
     Write-Host "=============================================================================`n" -ForegroundColor Cyan
 
     # 1. Resolve Machine Identity
     $machineId = Get-WindowsMachineIdentity -Override $MachineOverride
-    Write-LogInfo "Windows Machine Identity Derived: $machineId"
+    Write-LogInfo "Windows Machine Identity: $machineId"
     if ($MachineOverride) {
-        Write-LogWarn "[DEMO OVERRIDE] Simulating machine ID using test override: '$MachineOverride'"
+        Write-LogWarn "[TEST OVERRIDE] Simulating machine ID using test override: '$MachineOverride'"
     }
 
     # 2. License Validation
@@ -364,20 +433,21 @@ try {
         Write-LogError "License key is invalid or revoked."
         exit 1
     }
-    Write-LogSuccess "License key verified! (License ID: $($valData.license_id))"
+    Write-LogSuccess "License key verified for product: $($valData.product_name) (License ID: $($valData.license_id))"
 
     # 3. Machine Activation
-    $actData = Invoke-MachineActivation -Key $LicenseKey -MachineId $machineId -BaseUrl $BackendUrl
+    $productCode = if ($valData.product_code) { $valData.product_code } else { "NAV-BRAHMI-DRIVER" }
+    $actData = Invoke-MachineActivation -Key $LicenseKey -MachineId $machineId -ProductCode $productCode -BaseUrl $BackendUrl
     if (-not $actData.success -or -not $actData.activated) {
         Write-LogError "Machine activation failed."
         exit 1
     }
     $token = $actData.token
-    Write-LogSuccess "Machine activation approved! Signed token received."
+    Write-LogSuccess "Machine activation approved! Signed Ed25519 token received."
 
     # Save activation token to persistent location
     $tokenFile = $null
-    $installDir = "C:\Program Files\KeyboardDriverDemo"
+    $installDir = "C:\Program Files\NavBrahmi"
     try {
         if (-not (Test-Path $installDir)) {
             New-Item -ItemType Directory -Path $installDir -Force -ErrorAction Stop | Out-Null
@@ -386,18 +456,11 @@ try {
         Set-Content -Path $targetTokenFile -Value $token -Encoding UTF8 -ErrorAction Stop
         $tokenFile = $targetTokenFile
     } catch {
-        $localDir = if ($PSScriptRoot) { $PSScriptRoot } else { (Get-Location).Path }
-        $targetTokenFile = Join-Path $localDir "activation.token"
-        try {
-            Set-Content -Path $targetTokenFile -Value $token -Encoding UTF8 -ErrorAction Stop
-            $tokenFile = $targetTokenFile
-        } catch {
-            $appDataDir = Join-Path $env:LOCALAPPDATA "KeyboardDriverDemo"
-            New-Item -ItemType Directory -Path $appDataDir -Force -ErrorAction SilentlyContinue | Out-Null
-            $targetTokenFile = Join-Path $appDataDir "activation.token"
-            Set-Content -Path $targetTokenFile -Value $token -Encoding UTF8
-            $tokenFile = $targetTokenFile
-        }
+        $appDataDir = Join-Path $env:LOCALAPPDATA "NavBrahmi"
+        New-Item -ItemType Directory -Path $appDataDir -Force -ErrorAction SilentlyContinue | Out-Null
+        $targetTokenFile = Join-Path $appDataDir "activation.token"
+        Set-Content -Path $targetTokenFile -Value $token -Encoding UTF8
+        $tokenFile = $targetTokenFile
     }
     Write-LogInfo "Activation token saved to: $tokenFile"
 
@@ -405,20 +468,22 @@ try {
     $downloadedFiles = Invoke-PackageDownloadAndVerification -ValidationData $valData -DestinationDir $TempDir
 
     # 5. Driver Package Installation
-    $driverResult = Invoke-WindowsDriverInstallation -PackageFiles $downloadedFiles -TargetDir $TempDir
+    $driverResult = Invoke-NavBrahmiDriverInstallation -PackageFiles $downloadedFiles -TargetDir $TempDir
 
     if ($driverResult.RebootRequired) {
         Write-Host "`n=============================================================================" -ForegroundColor Yellow
-        Write-Host " WINDOWS INSTALLATION BOOTSTRAPPER COMPLETED (REBOOT REQUIRED)" -ForegroundColor Yellow
-        Write-Host " Machine ID:     $machineId" -ForegroundColor Yellow
+        Write-Host " NAV BRAHMI INSTALLATION COMPLETED (SYSTEM RESTART REQUIRED)" -ForegroundColor Yellow
+        Write-Host " Product:       $($valData.product_name)" -ForegroundColor Yellow
+        Write-Host " Machine ID:    $machineId" -ForegroundColor Yellow
         Write-Host " License ID:    $($valData.license_id)" -ForegroundColor Yellow
         Write-Host " Token File:    $tokenFile" -ForegroundColor Yellow
-        Write-Host " Reboot Status: Driver installed successfully. System restart required to activate." -ForegroundColor Yellow
+        Write-Host " Reboot Status: Driver installed. Please restart your computer to finalize." -ForegroundColor Yellow
         Write-Host "=============================================================================`n" -ForegroundColor Yellow
     } else {
         Write-Host "`n=============================================================================" -ForegroundColor Green
-        Write-Host " WINDOWS INSTALLATION BOOTSTRAPPER COMPLETED SUCCESSFULLY" -ForegroundColor Green
-        Write-Host " Machine ID:  $machineId" -ForegroundColor Green
+        Write-Host " NAV BRAHMI DRIVER INSTALLATION COMPLETED SUCCESSFULLY" -ForegroundColor Green
+        Write-Host " Product:    $($valData.product_name)" -ForegroundColor Green
+        Write-Host " Machine ID: $machineId" -ForegroundColor Green
         Write-Host " License ID: $($valData.license_id)" -ForegroundColor Green
         Write-Host " Token File: $tokenFile" -ForegroundColor Green
         Write-Host "=============================================================================`n" -ForegroundColor Green
@@ -426,7 +491,7 @@ try {
 
 } catch {
     Write-Host "`n=============================================================================" -ForegroundColor Red
-    Write-Host " WINDOWS INSTALLATION BOOTSTRAPPER FAILED" -ForegroundColor Red
+    Write-Host " NAV BRAHMI INSTALLATION FAILED" -ForegroundColor Red
     Write-Host " Error: $($_.Exception.Message)" -ForegroundColor Red
     Write-Host "=============================================================================`n" -ForegroundColor Red
     exit 1

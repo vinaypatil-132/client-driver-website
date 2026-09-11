@@ -15,72 +15,59 @@ try {
 
 async function main() {
   console.log('====================================================');
-  console.log(' Backblaze B2 Windows Driver Package Uploader');
+  console.log(' Backblaze B2 Nav Brahmi Driver Package Uploader');
   console.log('====================================================');
 
   const targetDir = path.resolve(process.cwd(), 'Requirements/windows-driver');
-  const expectedFilename = WINDOWS_PACKAGE_DEFINITIONS.kbfiltrDriver.filename; // kbfiltr-driver-package.zip
-  const targetFilePath = path.join(targetDir, expectedFilename);
-
-  // Check if real built Windows driver package exists
-  if (!fs.existsSync(targetFilePath)) {
-    console.error('\n❌ [ERROR] Built Windows driver package not found!');
-    console.error(`Expected file location: ${targetFilePath}`);
-    console.error('\n----------------------------------------------------');
-    console.error(' REMAINING WINDOWS BUILD STEPS REQUIRED FIRST:');
-    console.error('----------------------------------------------------');
-    console.error(' 1. Boot Windows 11.');
-    console.error(' 2. Open Microsoft kbfiltr solution (Requirements/windows-kbfiltr/).');
-    console.error(' 3. Build x64 Release configuration in Visual Studio 2022 + WDK.');
-    console.error(' 4. Copy generated package files (.inf, .sys, .cat) or zip bundle into:');
-    console.error('    Requirements/windows-driver/kbfiltr-driver-package.zip');
-    console.error(' 5. Re-run this script: npm run upload:windows-package');
-    console.error('----------------------------------------------------\n');
-    console.error('NO files were uploaded to Backblaze B2.\n');
-    process.exit(1);
-  }
-
-  const fileBuffer = fs.readFileSync(targetFilePath);
-  const calculatedHash = crypto.createHash('sha256').update(fileBuffer).digest('hex');
+  const packages = [
+    WINDOWS_PACKAGE_DEFINITIONS.brahmiTamilGranthaDriver,
+    WINDOWS_PACKAGE_DEFINITIONS.kharoshthiDriver,
+  ];
 
   const config = getB2Config();
   console.log(`\n[CONFIG] Endpoint: ${config.endpoint}`);
   console.log(`[CONFIG] Region:   ${config.region}`);
   console.log(`[CONFIG] Bucket:   ${config.bucketName}`);
-  console.log(`[CONFIG] Key ID:   ${config.keyId.substring(0, 8)}...`);
+  console.log(`[CONFIG] Key ID:   ${config.keyId.substring(0, 8)}...\n`);
 
-  console.log(`\n--- Processing ${expectedFilename} ---`);
-  console.log(`[LOCAL] Path:       ${targetFilePath}`);
-  console.log(`[LOCAL] Size:       ${fileBuffer.length} bytes`);
-  console.log(`[LOCAL] SHA-256:    ${calculatedHash}`);
-
-  const targetKey = WINDOWS_PACKAGE_DEFINITIONS.kbfiltrDriver.key;
-  console.log(`[UPLOAD] Uploading to B2 target key: "${targetKey}"...`);
-
-  await uploadPackageToB2(
-    targetKey,
-    fileBuffer,
-    WINDOWS_PACKAGE_DEFINITIONS.kbfiltrDriver.contentType
-  );
-  console.log(`[UPLOAD] Upload completed.`);
-
-  // Verify object presence in B2 via HeadObject
-  console.log(`[VERIFY] Verifying object existence in Backblaze B2...`);
   const client = createB2Client();
-  const headResult = await client.send(
-    new HeadObjectCommand({
-      Bucket: config.bucketName,
-      Key: targetKey,
-    })
-  );
 
-  console.log(`[VERIFY] Success! Object size in B2: ${headResult.ContentLength} bytes`);
+  for (const pkg of packages) {
+    const targetFilePath = path.join(targetDir, pkg.filename);
 
-  console.log('\n====================================================');
-  console.log(' Windows Driver Package Uploaded & Verified in B2!');
-  console.log(' Update src/lib/b2.ts with:');
-  console.log(`   sha256: '${calculatedHash}'`);
-  console.log(`   isAvailable: true`);
+    if (!fs.existsSync(targetFilePath)) {
+      console.error(`\n❌ [ERROR] Package file not found: ${targetFilePath}`);
+      console.error(`Run 'npx tsx scripts/package-drivers.ts' first.`);
+      process.exit(1);
+    }
+
+    const fileBuffer = fs.readFileSync(targetFilePath);
+    const calculatedHash = crypto.createHash('sha256').update(fileBuffer).digest('hex');
+
+    console.log(`--- Processing ${pkg.productName} (${pkg.filename}) ---`);
+    console.log(`[LOCAL] Path:       ${targetFilePath}`);
+    console.log(`[LOCAL] Size:       ${fileBuffer.length} bytes`);
+    console.log(`[LOCAL] SHA-256:    ${calculatedHash}`);
+
+    console.log(`[UPLOAD] Uploading to B2 target key: "${pkg.key}"...`);
+
+    await uploadPackageToB2(pkg.key, fileBuffer, pkg.contentType);
+    console.log(`[UPLOAD] Upload completed.`);
+
+    // Verify object presence in B2 via HeadObject
+    console.log(`[VERIFY] Verifying object existence in Backblaze B2...`);
+    const headResult = await client.send(
+      new HeadObjectCommand({
+        Bucket: config.bucketName,
+        Key: pkg.key,
+      })
+    );
+
+    console.log(`[VERIFY] Success! Object size in B2: ${headResult.ContentLength} bytes\n`);
+  }
+
+  console.log('====================================================');
+  console.log(' All Nav Brahmi Packages Uploaded & Verified in B2!');
   console.log('====================================================\n');
 }
 

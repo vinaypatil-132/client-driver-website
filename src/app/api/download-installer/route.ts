@@ -1,43 +1,88 @@
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import fs from 'fs';
 import path from 'path';
+import { prisma } from '@/lib/prisma';
+import { createPurchaseAuthToken, verifyPurchaseAuthToken } from '@/lib/license';
 
 export const dynamic = 'force-dynamic';
 
-export async function GET(req: Request) {
+export async function GET(req: NextRequest) {
   try {
     const { searchParams } = new URL(req.url);
-    const platform = searchParams.get('platform')?.toLowerCase();
+    const fileParam = searchParams.get('file')?.toLowerCase();
+    const tokenParam = searchParams.get('token')?.trim();
+    const licenseKeyParam = searchParams.get('licenseKey')?.trim();
 
-    const isExplicitLinux = platform === 'linux' || platform === 'ubuntu' || platform === 'sh';
-    const isWindows = !isExplicitLinux;
+    // Default to Setup.exe Windows bootstrapper executable
+    let filename = 'Setup.exe';
+    let contentType = 'application/vnd.microsoft.portable-executable';
 
-    const scriptPath = isWindows
-      ? path.resolve(process.cwd(), 'Requirements', 'windows-driver', 'setup.ps1')
-      : path.resolve(process.cwd(), 'Requirements', 'setup.sh');
+    if (fileParam === 'ps1' || fileParam === 'setup.ps1') {
+      filename = 'setup.ps1';
+      contentType = 'text/plain; charset=utf-8';
+    } else if (fileParam === 'bat' || fileParam === 'setup.bat') {
+      filename = 'setup.bat';
+      contentType = 'text/plain; charset=utf-8';
+    }
 
-    if (!fs.existsSync(scriptPath)) {
+    const filePath = path.resolve(process.cwd(), 'Requirements', 'windows-driver', filename);
+
+    if (!fs.existsSync(filePath)) {
       return NextResponse.json(
-        { error: `Installer script (${isWindows ? 'setup.ps1' : 'setup.sh'}) not found on server.` },
+        { error: `Installer file (${filename}) not found on server.` },
         { status: 404 }
       );
     }
 
-    const fileContent = fs.readFileSync(scriptPath, 'utf-8');
+    let fileBuffer = fs.readFileSync(filePath);
 
-    return new NextResponse(fileContent, {
+    // If downloading Setup.exe with an authorized token or licenseKey, attach a signed authorization payload block
+    if (filename === 'Setup.exe') {
+      let activeToken = tokenParam;
+      let activeLicenseKey = licenseKeyParam;
+
+      if (!activeToken && activeLicenseKey) {
+        // Generate purchase auth token from database license
+        const lic = await prisma.license.findUnique({
+          where: { licenseKey: activeLicenseKey },
+        });
+        if (lic && lic.status === 'ACTIVE') {
+          activeToken = createPurchaseAuthToken(lic.licenseKey, lic.id, lic.email);
+        }
+      } else if (activeToken && !activeLicenseKey) {
+        const verified = verifyPurchaseAuthToken(activeToken);
+        if (verified.valid && verified.payload) {
+          activeLicenseKey = verified.payload.license_key;
+        }
+      }
+
+      if (activeToken && activeLicenseKey) {
+        const payloadObj = {
+          token: activeToken,
+          licenseKey: activeLicenseKey,
+          generatedAt: Date.now(),
+        };
+        const payloadStr = JSON.stringify(payloadObj);
+        const payloadBlock = Buffer.from(
+          `\r\n---NAV_BRAHMI_AUTH_START---\r\n${payloadStr}\r\n---NAV_BRAHMI_AUTH_END---\r\n`,
+          'utf-8'
+        );
+        fileBuffer = Buffer.concat([fileBuffer, payloadBlock]);
+      }
+    }
+
+    return new NextResponse(fileBuffer, {
       status: 200,
       headers: {
-        'Content-Type': isWindows
-          ? 'text/plain; charset=utf-8'
-          : 'text/x-shellscript; charset=utf-8',
-        'Content-Disposition': `attachment; filename="${isWindows ? 'setup.ps1' : 'setup.sh'}"`,
+        'Content-Type': contentType,
+        'Content-Disposition': `attachment; filename="${filename}"`,
+        'Content-Length': fileBuffer.length.toString(),
       },
     });
   } catch (error) {
     console.error('[DOWNLOAD_INSTALLER_ERROR]', error);
     return NextResponse.json(
-      { error: 'Failed to retrieve installer script.' },
+      { error: 'Failed to retrieve installer executable.' },
       { status: 500 }
     );
   }

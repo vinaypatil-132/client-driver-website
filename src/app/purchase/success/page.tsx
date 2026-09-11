@@ -6,12 +6,11 @@ import Link from 'next/link';
 
 function SuccessContent() {
   const searchParams = useSearchParams();
-  const licenseKey = searchParams.get('licenseKey') || 'DEMO-XXXX-XXXX-XXXX-XXXX';
+  const licenseKey = searchParams.get('licenseKey') || 'NAV-XXXX-XXXX-XXXX-XXXX';
   const email = searchParams.get('email') || 'customer@example.com';
-  const productName = searchParams.get('productName') || 'Indian Language Keyboard Driver — DEMO';
+  const productName = searchParams.get('productName') || 'Nav Brahmi Driver Suite';
 
   const [copiedKey, setCopiedKey] = useState(false);
-  const [copiedCommand, setCopiedCommand] = useState(false);
   const [backendUrl, setBackendUrl] = useState('http://localhost:3000');
 
   useEffect(() => {
@@ -20,18 +19,10 @@ function SuccessContent() {
     }
   }, []);
 
-  const terminalCommand = `powershell -ExecutionPolicy Bypass -Command "iwr -Uri '${backendUrl}/api/download-installer?platform=windows' -OutFile 'setup.ps1'; .\\setup.ps1 -LicenseKey '${licenseKey}' -BackendUrl '${backendUrl}'"`;
-
   const handleCopyKey = () => {
     navigator.clipboard.writeText(licenseKey);
     setCopiedKey(true);
     setTimeout(() => setCopiedKey(false), 2500);
-  };
-
-  const handleCopyCommand = () => {
-    navigator.clipboard.writeText(terminalCommand);
-    setCopiedCommand(true);
-    setTimeout(() => setCopiedCommand(false), 2500);
   };
 
   return (
@@ -39,16 +30,16 @@ function SuccessContent() {
       <div className="card">
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '1.25rem' }}>
           <span className="badge badge-success" style={{ fontSize: '0.85rem' }}>
-            Payment Simulated Successfully
+            Payment Successful
           </span>
-          <span className="badge badge-demo">License Issued</span>
+          <span className="badge badge-demo">License Active</span>
         </div>
 
         <h1 className="card-title" style={{ fontSize: '1.85rem' }}>
           Thank you for your purchase!
         </h1>
         <p className="card-subtitle">
-          Your purchase of <strong>{productName}</strong> is complete. Follow the instructions below to install your software on Windows 11.
+          Your license for <strong>{productName}</strong> is active. Follow the simple steps below to install on Windows 11.
         </p>
 
         <div style={{ background: 'var(--bg-secondary)', border: '1px solid var(--border)', borderRadius: '0.75rem', padding: '1.5rem', marginBottom: '2rem' }}>
@@ -81,50 +72,92 @@ function SuccessContent() {
           Installation Instructions (Microsoft Windows 11)
         </h2>
 
-        <div className="steps-list">
-          <div className="step-item">
-            <h3 style={{ fontSize: '1.05rem', marginBottom: '0.35rem' }}>Option A: One-Line PowerShell Installation (Recommended)</h3>
-            <p style={{ fontSize: '0.875rem', color: 'var(--text-secondary)' }}>
-              Open PowerShell as Administrator and run the following command. It downloads the bootstrapper, validates your license, binds the machine hardware ID, downloads the verified driver package from private Backblaze B2, and installs the driver:
-            </p>
-            <div className="code-box">
-              <code>{terminalCommand}</code>
-              <button className="copy-btn" onClick={handleCopyCommand}>
-                {copiedCommand ? '✓ Copied!' : 'Copy Command'}
-              </button>
+        {/* Primary Customer Workflow */}
+        <div style={{ background: 'var(--bg-secondary)', border: '2px solid var(--accent)', borderRadius: '0.75rem', padding: '1.75rem', marginBottom: '1.5rem' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem' }}>
+            <div>
+              <h3 style={{ fontSize: '1.25rem', color: 'var(--text-primary)', margin: '0 0 0.25rem 0' }}>
+                🚀 Windows Setup Bootstrapper (Setup.exe)
+              </h3>
+              <p style={{ fontSize: '0.875rem', color: 'var(--text-secondary)', margin: 0 }}>
+                Click below to download the official installer. Double-click <code>Setup.exe</code> and approve the Windows UAC prompt.
+              </p>
             </div>
+            <a
+              href={`/api/download-installer?platform=windows&licenseKey=${encodeURIComponent(licenseKey)}`}
+              className="btn btn-primary"
+              style={{ padding: '0.875rem 1.75rem', fontSize: '1.05rem', textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: '0.5rem' }}
+            >
+              <span>📥</span>
+              <span>Download Pre-Authorized Setup.exe</span>
+            </a>
           </div>
 
-          <div className="step-item">
-            <h3 style={{ fontSize: '1.05rem', marginBottom: '0.35rem' }}>Option B: Manual Bootstrapper Download</h3>
-            <p style={{ fontSize: '0.875rem', color: 'var(--text-secondary)', marginBottom: '0.75rem' }}>
-              Alternatively, download the PowerShell bootstrapper script directly and run it manually with your license key:
-            </p>
-            <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap', alignItems: 'center' }}>
-              <a href="/api/download-installer?platform=windows" className="btn btn-secondary">
-                📥 Download setup.ps1
-              </a>
+          <div style={{ marginTop: '1.25rem', paddingTop: '1.25rem', borderTop: '1px solid var(--border)' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '1rem' }}>
+              <div>
+                <strong>Step 1: Download</strong>
+                <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', margin: '0.2rem 0 0 0' }}>
+                  Click the button above to download your pre-authorized <code>Setup.exe</code>.
+                </p>
+              </div>
+              <div>
+                <strong>Step 2: Double-Click</strong>
+                <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', margin: '0.2rem 0 0 0' }}>
+                  Open <code>Setup.exe</code>. Your license is automatically identified!
+                </p>
+              </div>
+              <div>
+                <strong>Step 3: UAC Prompt</strong>
+                <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', margin: '0.2rem 0 0 0' }}>
+                  Click <strong>&quot;Yes&quot;</strong> when Windows asks for Administrator permission.
+                </p>
+              </div>
+              <div>
+                <strong>Step 4: Install</strong>
+                <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', margin: '0.2rem 0 0 0' }}>
+                  Click &quot;Install Driver&quot; and installation finishes automatically.
+                </p>
+              </div>
             </div>
-            <div className="code-box" style={{ marginTop: '0.75rem' }}>
-              <code>
-                powershell -ExecutionPolicy Bypass -File .\setup.ps1 -LicenseKey &quot;{licenseKey}&quot; -BackendUrl &quot;{backendUrl}&quot;
-              </code>
+          </div>
+        </div>
+
+        <div
+          style={{
+            marginTop: '1.25rem',
+            padding: '1rem 1.25rem',
+            background: 'rgba(56, 189, 248, 0.08)',
+            borderRadius: '0.5rem',
+            border: '1px solid rgba(56, 189, 248, 0.2)',
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'flex-start', gap: '0.75rem' }}>
+            <span style={{ fontSize: '1.25rem' }}>💡</span>
+            <div>
+              <strong style={{ color: 'var(--text-primary)', fontSize: '0.9rem' }}>No Need to Copy or Remember Keys:</strong>
+              <p style={{ fontSize: '0.825rem', color: 'var(--text-secondary)', margin: '0.25rem 0 0 0' }}>
+                Your downloaded installer is already tied to your license. If you ever lose this page or reinstall later, you can always recover your purchase at any time using our <Link href="/recover" style={{ color: 'var(--accent)', textDecoration: 'underline' }}>License Recovery Tool</Link>.
+              </p>
             </div>
           </div>
         </div>
 
         <div style={{ marginTop: '2rem', padding: '1rem', background: 'var(--bg-secondary)', borderRadius: '0.5rem', border: '1px solid var(--border)' }}>
           <h4 style={{ fontSize: '0.9rem', color: 'var(--text-primary)', marginBottom: '0.25rem' }}>
-            🔒 Zero-Knowledge Storage & Hardware-Bound Security
+            🔒 Zero-Knowledge Storage & Machine-Bound Security
           </h4>
           <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
-            The driver package is securely stored in private Backblaze B2 object storage. When <code>setup.ps1</code> runs, the backend validates your license in PostgreSQL, activates your machine ID (Registry MachineGuid + System UUID), and issues temporary expiring presigned URLs with verified SHA-256 hashes.
+            The driver package is securely stored in private Backblaze B2 object storage. When <code>Setup.exe</code> runs, it derives your Windows hardware ID (Registry MachineGuid + System UUID), validates your license in PostgreSQL, downloads the verified package via expiring presigned URLs, and registers the driver and unicode typography.
           </p>
         </div>
 
         <div style={{ marginTop: '2rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <Link href="/" className="btn btn-secondary">
             ← Back to Store
+          </Link>
+          <Link href="/recover" style={{ color: 'var(--accent)', fontSize: '0.875rem' }}>
+            License Recovery Page &rarr;
           </Link>
         </div>
       </div>

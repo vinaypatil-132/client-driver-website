@@ -1,10 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { signActivationToken } from '@/lib/keys';
+import { resolvePackageDefinition } from '@/lib/b2';
+
+export const dynamic = 'force-dynamic';
 
 export async function POST(req: NextRequest) {
   try {
-    let body: { license_key?: string; machine_id?: string; product_code?: string };
+    let body: { license_key?: string; machine_id?: string; product_code?: string; platform?: string };
     try {
       body = await req.json();
     } catch {
@@ -16,7 +19,6 @@ export async function POST(req: NextRequest) {
 
     const licenseKey = body.license_key?.trim();
     const machineId = body.machine_id?.trim();
-    const productCode = body.product_code?.trim() || 'KEYBOARD-DRIVER-DEMO';
 
     if (!licenseKey) {
       return NextResponse.json(
@@ -51,6 +53,9 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    const pkgDef = resolvePackageDefinition(license.product?.name || license.productId);
+    const productCode = pkgDef.product;
+
     const nowSec = Math.floor(Date.now() / 1000);
     const oneYearSec = 365 * 24 * 3600;
 
@@ -82,6 +87,8 @@ export async function POST(req: NextRequest) {
           token,
           license_id: updatedLicense.id,
           machine_id: machineId,
+          product_code: productCode,
+          product_name: license.product?.name || pkgDef.productName,
           status: 'ACTIVE',
           message: 'License activated successfully on this machine.',
         },
@@ -108,6 +115,8 @@ export async function POST(req: NextRequest) {
           token,
           license_id: license.id,
           machine_id: machineId,
+          product_code: productCode,
+          product_name: license.product?.name || pkgDef.productName,
           status: 'ACTIVE',
           message: 'Authorized machine recognized. Activation token re-issued.',
         },

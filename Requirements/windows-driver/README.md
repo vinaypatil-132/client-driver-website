@@ -1,99 +1,38 @@
-# Windows Keyboard Filter Driver Package Requirements & Handoff Guide
+# Windows Licensed Driver Distribution & Bootstrapper
 
-This directory (`Requirements/windows-driver/`) holds the Windows installer bootstrapper and serves as the destination for built Windows driver binaries (`.inf`, `.sys`, `.cat`) once generated on Windows 11.
-
----
-
-## Key Architecture & Security Principles
-
-1. **Microsoft Sample Source**:
-   - The source code in `Requirements/windows-kbfiltr/` is the official Microsoft Keyboard Filter Driver (`kbfiltr`) sample from the Windows Driver Samples repository.
-   - It serves as the baseline demonstration driver for Windows key filtering/interception.
-
-2. **No Invented or Fabricated Binaries**:
-   - Windows kernel driver binaries (`.sys`, `.inf`, `.cat`) MUST NOT be fabricated or manually edited on Linux.
-   - Drivers must be compiled using official Microsoft tools (Visual Studio 2022 + Windows Driver Kit) on an actual Windows 11 host.
-
-3. **Separation of Preparation and Upload**:
-   - The repository is prepared to support Windows package licensing, machine activation, presigned URL generation, and driver installation (`setup.ps1`).
-   - Backblaze B2 upload occurs **ONLY AFTER** the real driver package is compiled and verified on Windows 11. No dummy Windows binaries have been uploaded to B2.
+This directory contains the production-grade Windows 11 bootstrapper (`setup.ps1` and `setup.bat`) and authoritative driver packages for the Nav Brahmi driver suite.
 
 ---
 
-## Final Windows Package Destination
+## 1. Driver Packages
 
-When the driver is built on Windows 11, copy the output package files or zip archive to:
+The Windows delivery pipeline manages two authentic driver packages:
 
-```
-Requirements/windows-driver/kbfiltr-driver-package.zip
-```
+1. **Nav Brahmi — Brahmi Tamil Grantha (2026)**
+   - Package: `brahmi-tamil-grantha-driver-package.zip`
+   - Content: MSKLC Keyboard Layout Drivers (`setup.exe`, `B-Tam-Gr_amd64.msi`, `B-Tam-Gr_i386.msi`, `B-Tam-Gr_ia64.msi`, architecture DLLs in `amd64/`, `i386/`, `ia64/`, `wow64/`) and `NotoSansGrantha-Regular.ttf` Unicode font.
+   - B2 Storage Key: `driver/windows/brahmi-tamil-grantha-driver-package.zip`
+   - Authoritative SHA-256: `60e0c8056daf73a780305085419784945e328d66e212c35e5676f12c96cb7e07`
 
-Expected package contents inside the archive:
-- `kbfiltr.inf` — Windows Driver Setup Information File
-- `kbfiltr.sys` — Windows Kernel Driver Binary
-- `kbfiltr.cat` — Signed Windows Catalog File
-
----
-
-## Step-by-Step Windows 11 Build & Handoff Procedure
-
-Follow these steps on a Windows 11 machine to complete the driver build:
-
-1. **Boot Windows 11**:
-   - Boot into Windows 11 x64 environment (virtual machine or physical host).
-
-2. **Install Development Tools**:
-   - Install **Visual Studio 2022** (Select *"Desktop development with C++"* workload).
-   - Install the **Windows Driver Kit (WDK)** for Windows 11.
-   - Ensure the WDK Visual Studio extension is enabled.
-
-3. **Open the Microsoft kbfiltr Solution**:
-   - Open solution file at: `Requirements/windows-kbfiltr/Windows-driver-samples/input/kbfiltr/sys/kbfiltr.vcxproj` (or solution file `kbfiltr.sln`).
-
-4. **Build the Driver Package**:
-   - Set Build Configuration to **Release** and Platform to **x64**.
-   - Build Solution (`Ctrl + Shift + B`).
-
-5. **Locate Generated Output Package**:
-   - Locate the output folder (e.g., `x64/Release/kbfiltr/` or `x64/Release/Package/`).
-   - Confirm the presence of `kbfiltr.inf`, `kbfiltr.sys`, and `kbfiltr.cat`.
-
-6. **Place Output Files into Repository**:
-   - Zip the package contents into `kbfiltr-driver-package.zip`.
-   - Copy `kbfiltr-driver-package.zip` into `Requirements/windows-driver/`.
-
-7. **Upload Package to Backblaze B2**:
-   - Execute the upload script from the root repository directory:
-     ```bash
-     npm run upload:windows-package
-     ```
-   - The script will compute the SHA-256 hash, upload the package to private B2 storage under `demo/driver/windows/kbfiltr-driver-package.zip`, verify its presence, and output the hash.
-
-8. **Update Server Package Metadata**:
-   - Update `src/lib/b2.ts`:
-     ```typescript
-     export const WINDOWS_PACKAGE_DEFINITIONS = {
-       kbfiltrDriver: {
-         ...
-         sha256: '<COMPUTED_SHA256_HASH>',
-         isAvailable: true,
-       }
-     };
-     ```
-
-9. **Test Windows Installation Bootstrapper**:
-   - Execute `Requirements/windows-driver/setup.bat` on Windows 11 to perform end-to-end testing of license validation, activation, download, SHA-256 checksum verification, and `Pnputil` installation.
+2. **Nav Brahmi — Kharoshthi**
+   - Package: `kharoshthi-driver-package.zip`
+   - Content: MSKLC Keyboard Layout Drivers (`setup.exe`, `Kharoshi_amd64.msi`, `Kharoshi_i386.msi`, `Kharoshi_ia64.msi`, architecture DLLs in `amd64/`, `i386/`, `ia64/`, `wow64/`) and `NotoSansKharoshthi-Regular.ttf` Unicode font.
+   - B2 Storage Key: `driver/windows/kharoshthi-driver-package.zip`
+   - Authoritative SHA-256: `2c8a6c0cb689b3c7fae78d39ddd6bd35c57d828e3c06fe9899a4f40cb647fd95`
 
 ---
 
-## Windows Installer Usage
+## 2. Windows Bootstrapper Architecture (`setup.ps1`)
 
-To test the Windows installer script directly on Windows:
+The PowerShell bootstrapper executes the complete end-to-end installation lifecycle:
 
-```powershell
-.\setup.ps1 -LicenseKey "DEMO-XXXX-XXXX-XXXX-XXXX" -BackendUrl "http://localhost:3000"
-```
-Or via cmd launcher:
-```cmd
-setup.bat -LicenseKey "DEMO-XXXX-XXXX-XXXX-XXXX" -BackendUrl "http://localhost:3000"
-```
+1. **Machine Identity**: Derives stable SHA-256 hardware identity from Windows Registry `MachineGuid` and Motherboard/System UUID (`Win32_ComputerSystemProduct`).
+2. **License Validation**: Validates license status against Supabase PostgreSQL backend (`POST /api/validate-license`).
+3. **Machine Activation**: Transmits machine ID to backend (`POST /api/activation`) and receives cryptographically signed Ed25519 token.
+4. **Package Download**: Requests short-lived (15-min) presigned Backblaze B2 URLs and verifies byte integrity against authoritative SHA-256 checksums.
+5. **Driver & Font Installation**:
+   - Detects system architecture (`AMD64`/`x86`/`IA64`).
+   - Executes architecture-specific MSI installer (`msiexec.exe /i <msi> /qn /norestart`).
+   - Registers unicode font files (`.ttf`) to Windows font storage.
+6. **Token Persistence**: Saves activation token to `C:\Program Files\NavBrahmi\activation.token` (or LocalAppData fallback).
+7. **Cleanup**: Automatically purges all temporary download and extraction directories on exit.

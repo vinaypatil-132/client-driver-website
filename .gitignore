@@ -38,3 +38,9 @@ yarn-error.log*
 .vscode
 .idea
 .vs/
+# Confidential Nav Brahmi client packages
+Requirements/windows-driver/brahmi-tamil-grantha-driver-package.zip
+Requirements/windows-driver/kharoshthi-driver-package.zip
+# Signing private keys/certificates
+*.pfx
+*.p12
