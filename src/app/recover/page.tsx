@@ -43,7 +43,7 @@ export default function LicenseRecoveryPage() {
       const data = await res.json();
 
       if (!res.ok || !data.success) {
-        setErrorMessage(data.error || 'Failed to locate licenses for this email.');
+        setErrorMessage(data.error || 'No active licenses were found for this email address.');
         setIsLoading(false);
         return;
       }
@@ -51,7 +51,7 @@ export default function LicenseRecoveryPage() {
       setLicenses(data.licenses || []);
     } catch (err) {
       console.error(err);
-      setErrorMessage('A network error occurred while recovering your license.');
+      setErrorMessage('A network connection error occurred while recovering your license.');
     } finally {
       setIsLoading(false);
     }
@@ -64,31 +64,32 @@ export default function LicenseRecoveryPage() {
   };
 
   return (
-    <div className="container">
-      <div className="card">
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '1.25rem' }}>
-          <span className="badge badge-demo">Customer Self-Service</span>
-          <span className="badge badge-success">Instant Recovery</span>
+    <div className="container" style={{ maxWidth: '860px' }}>
+      <div className="card card-elevated">
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', marginBottom: '1.25rem' }}>
+          <span className="pill-badge pill-brand">Customer Support</span>
+          <span className="pill-badge pill-secondary">Self-Service Recovery</span>
         </div>
 
-        <h1 className="card-title" style={{ fontSize: '1.85rem' }}>
-          Recover Your Nav Brahmi License
+        <h1 style={{ fontSize: '2.25rem', fontWeight: 800, color: 'var(--text-main)', marginBottom: '0.5rem', letterSpacing: '-0.02em' }}>
+          License & Installer Recovery
         </h1>
-        <p className="card-subtitle">
-          Closed the success page or lost your key? Enter your purchase email to retrieve your license key and download your pre-authorized Windows installer.
+        <p style={{ color: 'var(--text-secondary)', fontSize: '1.05rem', marginBottom: '2rem' }}>
+          Retrieve your registered Nav Brahmi licenses and download pre-authorized Windows installers at any time using your purchase email address.
         </p>
 
+        {/* Email Lookup Card */}
         <div
           style={{
-            background: 'var(--bg-secondary)',
-            border: '1px solid var(--border)',
-            borderRadius: '0.75rem',
+            background: 'var(--bg-surface-elevated)',
+            border: '1px solid var(--border-color)',
+            borderRadius: '10px',
             padding: '1.75rem',
             marginBottom: '2rem',
           }}
         >
           <form onSubmit={handleRecover}>
-            <div className="input-group" style={{ marginBottom: '1.25rem' }}>
+            <div className="input-group">
               <label className="input-label" htmlFor="recovery-email">
                 Purchase Email Address
               </label>
@@ -96,7 +97,7 @@ export default function LicenseRecoveryPage() {
                 id="recovery-email"
                 type="email"
                 className="input-field"
-                placeholder="customer@example.com"
+                placeholder="name@organization.com"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 disabled={isLoading}
@@ -106,24 +107,26 @@ export default function LicenseRecoveryPage() {
 
             {errorMessage && (
               <div className="alert alert-danger" style={{ marginBottom: '1.25rem' }}>
-                {errorMessage}
+                <span>⚠️</span>
+                <div>{errorMessage}</div>
               </div>
             )}
 
             <button
               type="submit"
               className="btn btn-primary"
-              style={{ width: '100%', padding: '0.875rem', fontSize: '1rem' }}
+              style={{ width: '100%', padding: '0.95rem', fontSize: '1rem' }}
               disabled={isLoading}
             >
-              {isLoading ? 'Searching Registered Licenses...' : '🔍 Find My License & Installer'}
+              {isLoading ? 'Searching Registered Licenses...' : '🔍 Locate My License & Installer'}
             </button>
           </form>
         </div>
 
+        {/* Recovered Licenses Results */}
         {licenses.length > 0 && (
-          <div style={{ marginTop: '2rem' }}>
-            <h2 style={{ fontSize: '1.35rem', marginBottom: '1rem', color: 'var(--text-primary)' }}>
+          <div style={{ marginTop: '2.5rem' }}>
+            <h2 style={{ fontSize: '1.35rem', fontWeight: 800, marginBottom: '1.25rem', color: 'var(--text-main)' }}>
               Found {licenses.length} Active {licenses.length === 1 ? 'License' : 'Licenses'}
             </h2>
 
@@ -132,10 +135,11 @@ export default function LicenseRecoveryPage() {
                 <div
                   key={lic.license_id}
                   style={{
-                    background: 'var(--bg-secondary)',
-                    border: '2px solid var(--accent)',
-                    borderRadius: '0.75rem',
-                    padding: '1.5rem',
+                    background: '#FFFFFF',
+                    border: '1.5px solid var(--border-color)',
+                    borderRadius: '10px',
+                    padding: '1.75rem',
+                    boxShadow: 'var(--shadow-sm)',
                   }}
                 >
                   <div
@@ -144,17 +148,21 @@ export default function LicenseRecoveryPage() {
                       justifyContent: 'space-between',
                       alignItems: 'center',
                       flexWrap: 'wrap',
-                      gap: '0.75rem',
-                      marginBottom: '1rem',
+                      gap: '1rem',
+                      marginBottom: '1.25rem',
                     }}
                   >
                     <div>
-                      <h3 style={{ fontSize: '1.2rem', margin: '0 0 0.25rem 0', color: 'var(--text-primary)' }}>
-                        {lic.product_name}
-                      </h3>
-                      <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
-                        Purchased on {new Date(lic.created_at).toLocaleDateString()} &bull; Status:{' '}
-                        <span style={{ color: 'var(--success)', fontWeight: 600 }}>ACTIVE</span>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.35rem' }}>
+                        <h3 style={{ fontSize: '1.25rem', fontWeight: 700, margin: 0, color: 'var(--text-main)' }}>
+                          {lic.product_name}
+                        </h3>
+                        <span className="pill-badge pill-success" style={{ fontSize: '0.75rem' }}>
+                          Active
+                        </span>
+                      </div>
+                      <div style={{ fontSize: '0.825rem', color: 'var(--text-muted)' }}>
+                        Registered on {new Date(lic.created_at).toLocaleDateString()}
                       </div>
                     </div>
 
@@ -162,43 +170,46 @@ export default function LicenseRecoveryPage() {
                       href={lic.download_url}
                       className="btn btn-primary"
                       style={{
-                        padding: '0.75rem 1.5rem',
+                        padding: '0.75rem 1.4rem',
                         fontSize: '0.95rem',
-                        textDecoration: 'none',
                         display: 'inline-flex',
                         alignItems: 'center',
                         gap: '0.5rem',
                       }}
                     >
                       <span>📥</span>
-                      <span>Download Pre-Authorized Setup.exe</span>
+                      <span>Download Setup.exe</span>
                     </a>
                   </div>
 
                   <div style={{ marginTop: '1rem' }}>
-                    <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: '0.35rem' }}>
+                    <div style={{ fontSize: '0.775rem', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '0.35rem', fontWeight: 700 }}>
                       License Key (Fallback / Manual Entry)
                     </div>
-                    <div className="code-box" style={{ fontSize: '1.05rem', fontWeight: 700 }}>
-                      <span>{lic.license_key}</span>
+                    <div className="license-display-card" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.75rem', margin: 0 }}>
+                      <span className="license-key-text" style={{ fontSize: '1.05rem' }}>{lic.license_key}</span>
                       <button className="copy-btn" onClick={() => handleCopy(lic.license_key)}>
-                        {copiedKey === lic.license_key ? '✓ Copied!' : 'Copy Key'}
+                        {copiedKey === lic.license_key ? '✓ Copied!' : '📋 Copy Key'}
                       </button>
                     </div>
                   </div>
 
                   <div
                     style={{
-                      marginTop: '1rem',
-                      padding: '0.75rem',
-                      background: 'rgba(56, 189, 248, 0.08)',
-                      borderRadius: '0.5rem',
-                      border: '1px solid rgba(56, 189, 248, 0.2)',
+                      marginTop: '1.25rem',
+                      padding: '0.85rem 1rem',
+                      background: 'var(--brand-subtle)',
+                      borderRadius: '8px',
+                      border: '1px solid var(--brand-border)',
                       fontSize: '0.825rem',
                       color: 'var(--text-secondary)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '0.5rem',
                     }}
                   >
-                    💡 <strong>Smart Auto-Activation:</strong> The downloaded <code>Setup.exe</code> is linked to this license. You can simply double-click and run it on Windows 11 without typing or remembering your key.
+                    <span>💡</span>
+                    <span><strong>Pre-Authorized Installer:</strong> Double-click the downloaded <code>Setup.exe</code> on your Windows PC to install without typing your key.</span>
                   </div>
                 </div>
               ))}
@@ -206,12 +217,16 @@ export default function LicenseRecoveryPage() {
           </div>
         )}
 
-        <div style={{ marginTop: '2.5rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        {/* Footer Navigation */}
+        <div style={{ marginTop: '2.5rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem', paddingTop: '1.25rem', borderTop: '1px solid var(--border-color)' }}>
           <Link href="/" className="btn btn-secondary">
-            ← Back to Store
+            &larr; Back to Store
           </Link>
-          <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', margin: 0 }}>
-            Need to purchase a new license? <Link href="/" style={{ color: 'var(--accent)' }}>View Products</Link>
+          <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', margin: 0 }}>
+            Need a new driver edition?{' '}
+            <Link href="/#editions" style={{ color: 'var(--brand-primary)', fontWeight: 700 }}>
+              View Editions &rarr;
+            </Link>
           </p>
         </div>
       </div>

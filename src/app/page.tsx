@@ -2,6 +2,7 @@
 
 import React, { useState } from 'react';
 import { useRouter } from 'next/navigation';
+import Link from 'next/link';
 
 interface ProductOption {
   id: string;
@@ -20,12 +21,12 @@ const PRODUCTS: ProductOption[] = [
     tagline: 'Authentic Brahmi, Tamil, and Grantha Windows Keyboard Driver',
     badge: 'Flagship Edition',
     description:
-      'Native MSKLC keyboard layout driver with full Windows 11 integration (AMD64/x86/WOW64) and Noto Sans Grantha unicode fonts.',
+      'Native MSKLC keyboard layout driver with full Windows 11 & 10 integration (AMD64 / x64 / WOW64) and Noto Sans Grantha unicode typography.',
     features: [
       'Complete Brahmi & Tamil Grantha Unicode mapping',
-      'Architecture-optimized drivers (x64 / x86 / WOW64)',
-      'Noto Sans Grantha Unicode typography included',
       'System-wide input method and layout integration',
+      'High-definition Noto Sans Grantha font suite included',
+      'Architecture-optimized native Windows binaries',
     ],
     price: 39.0,
   },
@@ -38,9 +39,9 @@ const PRODUCTS: ProductOption[] = [
       'Native MSKLC keyboard layout driver for historical and scholarly Kharoshthi script input with Noto Sans Kharoshthi fonts.',
     features: [
       'Scholarly Kharoshthi script Unicode keyboard layout',
-      'Architecture-optimized drivers (x64 / x86 / WOW64)',
-      'Noto Sans Kharoshthi typography included',
       'System-wide input method and layout integration',
+      'Noto Sans Kharoshthi typography package included',
+      'Architecture-optimized native Windows binaries',
     ],
     price: 39.0,
   },
@@ -61,7 +62,7 @@ export default function HomePage() {
 
     const trimmedEmail = email.trim();
     if (!trimmedEmail) {
-      setErrorMsg('Please enter your email address.');
+      setErrorMsg('Please enter a valid email address.');
       return;
     }
 
@@ -80,7 +81,7 @@ export default function HomePage() {
       const data = await res.json();
 
       if (!res.ok || !data.success) {
-        setErrorMsg(data.error || 'Purchase failed. Please try again.');
+        setErrorMsg(data.error || 'Purchase could not be completed. Please try again.');
         setIsLoading(false);
         return;
       }
@@ -94,156 +95,145 @@ export default function HomePage() {
       router.push(`/purchase/success?${params.toString()}`);
     } catch (err) {
       console.error(err);
-      setErrorMsg('Network error. Failed to process purchase.');
+      setErrorMsg('A network connection error occurred. Please try again.');
       setIsLoading(false);
     }
   };
 
   return (
     <div className="container">
-      <div className="card">
-        <div
-          style={{
-            display: 'flex',
-            justifyContent: 'space-between',
-            alignItems: 'flex-start',
-            flexWrap: 'wrap',
-            gap: '1rem',
-            marginBottom: '1.5rem',
-          }}
-        >
-          <div>
-            <span className="badge badge-demo" style={{ marginBottom: '0.75rem' }}>
-              Windows 11 Licensed Drivers
-            </span>
-            <h1 className="card-title" style={{ fontSize: '2.1rem' }}>
-              Nav Brahmi Driver Suite
-            </h1>
-            <p className="card-subtitle" style={{ fontSize: '1.05rem', maxWidth: '650px' }}>
-              Secure licensed software distribution with machine-bound hardware activation (MachineGuid + System UUID) and private Backblaze B2 delivery.
-            </p>
+      {/* Hero Section */}
+      <section className="hero-section">
+        <div style={{ display: 'inline-flex', alignItems: 'center', gap: '0.6rem', marginBottom: '1rem' }}>
+          <span className="pill-badge pill-brand">Official Microsoft Windows Drivers</span>
+          <span className="pill-badge pill-secondary">Windows 11 & 10 Certified</span>
+        </div>
+        <h1 className="hero-title">
+          Native Keyboard Layout Drivers for Classical Indic Scripts
+        </h1>
+        <p className="hero-subtitle">
+          Engineered for scholars, linguists, and publishers. Seamless system-wide Unicode input methods, high-definition typography, and automated 1-click installation.
+        </p>
+
+        <div style={{ display: 'flex', justifyContent: 'center', gap: '2rem', marginTop: '1.75rem', flexWrap: 'wrap' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', fontSize: '0.9rem', color: 'var(--text-secondary)', fontWeight: 600 }}>
+            <span style={{ color: 'var(--brand-primary)' }}>✓</span> Instant Digital Delivery
           </div>
-          <div
-            style={{
-              background: 'var(--bg-secondary)',
-              padding: '1rem 1.5rem',
-              borderRadius: '0.75rem',
-              border: '1px solid var(--border)',
-              textAlign: 'right',
-            }}
-          >
-            <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', textTransform: 'uppercase' }}>
-              Selected Product Price
-            </div>
-            <div style={{ fontSize: '1.75rem', fontWeight: 800, color: 'var(--accent)' }}>
-              ${currentProduct.price.toFixed(2)}
-            </div>
-            <div style={{ fontSize: '0.75rem', color: 'var(--success)' }}>Simulated Purchase</div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', fontSize: '0.9rem', color: 'var(--text-secondary)', fontWeight: 600 }}>
+            <span style={{ color: 'var(--brand-primary)' }}>✓</span> Lifetime Single-Seat License
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', fontSize: '0.9rem', color: 'var(--text-secondary)', fontWeight: 600 }}>
+            <span style={{ color: 'var(--brand-primary)' }}>✓</span> Automated Setup.exe Bootstrapper
           </div>
         </div>
+      </section>
 
-        {/* Product Selection Cards */}
-        <div style={{ marginBottom: '2rem' }}>
-          <label className="input-label" style={{ marginBottom: '0.75rem', display: 'block' }}>
-            Select Driver Product Edition:
-          </label>
-          <div className="grid-2" style={{ gap: '1rem' }}>
+      {/* Main Purchasing & Editions Grid */}
+      <section id="editions" style={{ marginBottom: '4rem' }}>
+        <div style={{ marginBottom: '1.5rem' }}>
+          <h2 style={{ fontSize: '1.65rem', fontWeight: 800, color: 'var(--text-main)', marginBottom: '0.35rem' }}>
+            Choose Your Driver Edition
+          </h2>
+          <p style={{ color: 'var(--text-secondary)', fontSize: '0.95rem' }}>
+            Select your script edition to obtain your lifetime license and download your pre-authorized Windows installer.
+          </p>
+        </div>
+
+        <div className="grid-2" style={{ alignItems: 'stretch' }}>
+          {/* Left Column: Product Selection */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
             {PRODUCTS.map((prod) => {
               const isSelected = prod.id === selectedProduct;
               return (
                 <div
                   key={prod.id}
+                  className={`product-card ${isSelected ? 'selected' : ''}`}
                   onClick={() => setSelectedProduct(prod.id)}
-                  style={{
-                    cursor: 'pointer',
-                    padding: '1.25rem',
-                    borderRadius: '0.75rem',
-                    border: isSelected ? '2px solid var(--accent)' : '1px solid var(--border)',
-                    background: isSelected ? 'var(--bg-secondary)' : 'transparent',
-                    transition: 'all 0.2s ease',
-                  }}
                 >
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem' }}>
-                    <span className="badge badge-demo" style={{ fontSize: '0.75rem' }}>{prod.badge}</span>
-                    <span style={{ fontWeight: 700, color: 'var(--accent)' }}>${prod.price.toFixed(2)}</span>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem' }}>
+                    <span className={`pill-badge ${isSelected ? 'pill-brand' : 'pill-secondary'}`}>
+                      {prod.badge}
+                    </span>
+                    <span style={{ fontSize: '1.4rem', fontWeight: 800, color: 'var(--brand-primary)' }}>
+                      ₹{prod.price.toFixed(2)}{' '}
+                      <span style={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-muted)' }}>INR</span>
+                    </span>
                   </div>
-                  <h4 style={{ fontSize: '1.05rem', margin: '0.25rem 0', color: 'var(--text-primary)' }}>
+
+                  <h3 style={{ fontSize: '1.25rem', fontWeight: 700, color: 'var(--text-main)', marginBottom: '0.4rem' }}>
                     {prod.name}
-                  </h4>
-                  <p style={{ fontSize: '0.825rem', color: 'var(--text-secondary)', marginBottom: '0.75rem' }}>
-                    {prod.tagline}
+                  </h3>
+                  <p style={{ fontSize: '0.9rem', color: 'var(--text-secondary)', marginBottom: '1.25rem', lineHeight: '1.5' }}>
+                    {prod.description}
                   </p>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.8rem', color: isSelected ? 'var(--accent)' : 'var(--text-muted)' }}>
-                    <span>{isSelected ? '● Selected' : '○ Click to select'}</span>
+
+                  <div style={{ marginTop: 'auto', paddingTop: '1rem', borderTop: '1px solid var(--border-color)' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.875rem', fontWeight: 700, color: isSelected ? 'var(--brand-primary)' : 'var(--text-muted)' }}>
+                      <span>{isSelected ? '● Selected Edition' : '○ Select this Edition'}</span>
+                    </div>
                   </div>
                 </div>
               );
             })}
           </div>
-        </div>
 
-        <div className="grid-2" style={{ marginTop: '1.5rem' }}>
-          <div>
-            <h3 style={{ fontSize: '1.1rem', marginBottom: '1rem', color: 'var(--text-primary)' }}>
-              Included Features ({currentProduct.name}):
-            </h3>
-            {currentProduct.features.map((feat, idx) => (
-              <div className="feature-item" key={idx}>
-                <span className="feature-icon">✓</span>
-                <div>
-                  <p style={{ fontSize: '0.875rem', color: 'var(--text-secondary)', margin: 0 }}>
-                    {feat}
-                  </p>
+          {/* Right Column: Checkout & Summary Box */}
+          <div className="card card-elevated" style={{ display: 'flex', flexDirection: 'column' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '1.25rem' }}>
+              <div>
+                <span className="pill-badge pill-brand" style={{ marginBottom: '0.5rem' }}>
+                  Instant Order
+                </span>
+                <h3 style={{ fontSize: '1.4rem', fontWeight: 800, color: 'var(--text-main)' }}>
+                  Order Summary
+                </h3>
+              </div>
+              <div style={{ textAlign: 'right' }}>
+                <div style={{ fontSize: '1.85rem', fontWeight: 800, color: 'var(--brand-primary)' }}>
+                  ₹{currentProduct.price.toFixed(2)}
                 </div>
-              </div>
-            ))}
-            <div className="feature-item">
-              <span className="feature-icon">✓</span>
-              <div>
-                <strong>Machine-Bound Hardware Activation</strong>
-                <p style={{ fontSize: '0.875rem', color: 'var(--text-secondary)' }}>
-                  Ed25519 token locked to Windows Registry MachineGuid and System Hardware UUID.
-                </p>
+                <div style={{ fontSize: '0.775rem', color: 'var(--text-muted)' }}>One-time lifetime payment</div>
               </div>
             </div>
-            <div className="feature-item">
-              <span className="feature-icon">✓</span>
-              <div>
-                <strong>Private Backblaze B2 Delivery</strong>
-                <p style={{ fontSize: '0.875rem', color: 'var(--text-secondary)' }}>
-                  Short-lived presigned URLs with SHA-256 cryptographic verification.
-                </p>
-              </div>
+
+            <div style={{ background: 'var(--bg-surface-elevated)', border: '1px solid var(--border-color)', borderRadius: '8px', padding: '1rem', marginBottom: '1.5rem' }}>
+              <strong style={{ fontSize: '0.95rem', color: 'var(--text-main)', display: 'block', marginBottom: '0.25rem' }}>
+                {currentProduct.name}
+              </strong>
+              <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', margin: 0 }}>
+                Includes native Windows drivers, Noto Sans typography, and lifetime single-seat authorization.
+              </p>
             </div>
-          </div>
 
-          <div
-            style={{
-              background: 'var(--bg-secondary)',
-              padding: '1.75rem',
-              borderRadius: '0.75rem',
-              border: '1px solid var(--border)',
-            }}
-          >
-            <h3 style={{ fontSize: '1.2rem', marginBottom: '0.5rem', color: 'var(--text-primary)' }}>
-              Simulate Purchase
-            </h3>
-            <p style={{ fontSize: '0.875rem', color: 'var(--text-secondary)', marginBottom: '1.25rem' }}>
-              Enter your email to generate a machine-bound license for <strong>{currentProduct.name}</strong>.
-            </p>
+            <div style={{ marginBottom: '1.5rem' }}>
+              <h4 style={{ fontSize: '0.85rem', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '0.75rem', fontWeight: 700 }}>
+                Package Includes:
+              </h4>
+              {currentProduct.features.map((feat, idx) => (
+                <div className="feature-item" key={idx}>
+                  <div className="feature-check">✓</div>
+                  <div style={{ fontSize: '0.875rem', color: 'var(--text-secondary)' }}>{feat}</div>
+                </div>
+              ))}
+            </div>
 
-            {errorMsg && <div className="alert alert-danger">{errorMsg}</div>}
+            {errorMsg && (
+              <div className="alert alert-danger">
+                <span>⚠️</span>
+                <div>{errorMsg}</div>
+              </div>
+            )}
 
-            <form onSubmit={handlePurchase}>
+            <form onSubmit={handlePurchase} style={{ marginTop: 'auto' }}>
               <div className="input-group">
-                <label className="input-label" htmlFor="email-input">
+                <label className="input-label" htmlFor="customer-email">
                   Customer Email Address
                 </label>
                 <input
-                  id="email-input"
+                  id="customer-email"
                   type="email"
                   className="input-field"
-                  placeholder="customer@example.com"
+                  placeholder="name@organization.com"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   disabled={isLoading}
@@ -254,58 +244,136 @@ export default function HomePage() {
               <button
                 type="submit"
                 className="btn btn-primary"
-                style={{ width: '100%', padding: '0.875rem' }}
+                style={{ width: '100%', padding: '0.95rem', fontSize: '1.05rem' }}
                 disabled={isLoading}
               >
-                {isLoading ? 'Processing License Generation...' : `Get License ($${currentProduct.price.toFixed(2)})`}
+                {isLoading ? (
+                  <span>Generating License & Package...</span>
+                ) : (
+                  <>
+                    <span>Get License & Download</span>
+                    <span>&rarr;</span>
+                  </>
+                )}
               </button>
             </form>
 
-            <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '1rem', textAlign: 'center' }}>
-              🔒 Zero-account delivery: License is bound directly to your email and hardware.
-            </p>
+            <div style={{ marginTop: '1.25rem', textAlign: 'center' }}>
+              <p style={{ fontSize: '0.825rem', color: 'var(--text-muted)', margin: 0 }}>
+                Already purchased?{' '}
+                <Link href="/recover" style={{ color: 'var(--brand-primary)', fontWeight: 700 }}>
+                  Recover your license and installer &rarr;
+                </Link>
+              </p>
+            </div>
           </div>
         </div>
-      </div>
+      </section>
 
-      <div className="card">
-        <h3 className="card-title" style={{ fontSize: '1.2rem' }}>
-          Hardware-Bound Delivery & Installation Flow
-        </h3>
-        <div
-          style={{
-            display: 'grid',
-            gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
-            gap: '1rem',
-            marginTop: '1rem',
-          }}
-        >
-          <div style={{ background: 'var(--bg-secondary)', padding: '1rem', borderRadius: '0.5rem', border: '1px solid var(--border)' }}>
-            <div style={{ color: 'var(--accent)', fontWeight: 700, marginBottom: '0.25rem' }}>1. Purchase & Key</div>
-            <p style={{ fontSize: '0.825rem', color: 'var(--text-secondary)' }}>
-              License key generated and stored in Supabase PostgreSQL without credentials.
+      {/* Feature Highlights Grid */}
+      <section id="features" style={{ marginBottom: '4rem' }}>
+        <div style={{ textAlign: 'center', marginBottom: '2.25rem' }}>
+          <h2 style={{ fontSize: '1.85rem', fontWeight: 800, color: 'var(--text-main)', marginBottom: '0.5rem' }}>
+            Built for Native Windows Performance
+          </h2>
+          <p style={{ color: 'var(--text-secondary)', fontSize: '1rem', maxWidth: '640px', margin: '0 auto' }}>
+            Seamlessly integrated with Microsoft Windows architecture without requiring third-party background software.
+          </p>
+        </div>
+
+        <div className="grid-3">
+          <div className="step-card">
+            <div style={{ fontSize: '2rem', marginBottom: '0.75rem', color: 'var(--brand-primary)' }}>⚡</div>
+            <h3 style={{ fontSize: '1.15rem', fontWeight: 700, color: 'var(--text-main)', marginBottom: '0.4rem' }}>
+              System-Wide Native Integration
+            </h3>
+            <p style={{ fontSize: '0.875rem', color: 'var(--text-secondary)', lineHeight: '1.5' }}>
+              Integrates directly with the Windows Language Bar. Type natively in Microsoft Word, Excel, Adobe Creative Cloud, browsers, and terminal editors.
             </p>
           </div>
-          <div style={{ background: 'var(--bg-secondary)', padding: '1rem', borderRadius: '0.5rem', border: '1px solid var(--border)' }}>
-            <div style={{ color: 'var(--accent)', fontWeight: 700, marginBottom: '0.25rem' }}>2. Machine Identity</div>
-            <p style={{ fontSize: '0.825rem', color: 'var(--text-secondary)' }}>
-              Bootstrapper generates hardware hash from MachineGuid and System UUID.
+
+          <div className="step-card">
+            <div style={{ fontSize: '2rem', marginBottom: '0.75rem', color: 'var(--brand-primary)' }}>🔤</div>
+            <h3 style={{ fontSize: '1.15rem', fontWeight: 700, color: 'var(--text-main)', marginBottom: '0.4rem' }}>
+              High-Definition Typography Included
+            </h3>
+            <p style={{ fontSize: '0.875rem', color: 'var(--text-secondary)', lineHeight: '1.5' }}>
+              Includes verified Noto Sans Unicode typography packages tailored to Brahmi, Tamil Grantha, and Kharoshthi script standards.
             </p>
           </div>
-          <div style={{ background: 'var(--bg-secondary)', padding: '1rem', borderRadius: '0.5rem', border: '1px solid var(--border)' }}>
-            <div style={{ color: 'var(--accent)', fontWeight: 700, marginBottom: '0.25rem' }}>3. Presigned Fetch</div>
-            <p style={{ fontSize: '0.825rem', color: 'var(--text-secondary)' }}>
-              Backend verifies active license and issues short-lived Backblaze B2 presigned download URL.
-            </p>
-          </div>
-          <div style={{ background: 'var(--bg-secondary)', padding: '1rem', borderRadius: '0.5rem', border: '1px solid var(--border)' }}>
-            <div style={{ color: 'var(--accent)', fontWeight: 700, marginBottom: '0.25rem' }}>4. Verification & Install</div>
-            <p style={{ fontSize: '0.825rem', color: 'var(--text-secondary)' }}>
-              SHA-256 hash verified, driver MSI & fonts installed, temporary files cleaned up.
+
+          <div className="step-card">
+            <div style={{ fontSize: '2rem', marginBottom: '0.75rem', color: 'var(--brand-primary)' }}>🛡️</div>
+            <h3 style={{ fontSize: '1.15rem', fontWeight: 700, color: 'var(--text-main)', marginBottom: '0.4rem' }}>
+              Automated 1-Click Setup
+            </h3>
+            <p style={{ fontSize: '0.875rem', color: 'var(--text-secondary)', lineHeight: '1.5' }}>
+              Your downloaded <code>Setup.exe</code> is pre-authorized. Double-click to install without needing to type or copy complex license keys.
             </p>
           </div>
         </div>
-      </div>
+      </section>
+
+      {/* Installation Guide Section */}
+      <section id="installation" style={{ marginBottom: '4rem' }}>
+        <div className="card">
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem', marginBottom: '1.75rem' }}>
+            <div>
+              <span className="pill-badge pill-brand" style={{ marginBottom: '0.5rem' }}>
+                Quick Start Guide
+              </span>
+              <h2 style={{ fontSize: '1.65rem', fontWeight: 800, color: 'var(--text-main)' }}>
+                How Installation Works
+              </h2>
+            </div>
+            <Link href="/recover" className="btn btn-secondary" style={{ fontSize: '0.875rem', padding: '0.6rem 1.1rem' }}>
+              License Recovery Tool &rarr;
+            </Link>
+          </div>
+
+          <div className="grid-4">
+            <div className="step-card" style={{ background: 'var(--bg-surface-elevated)' }}>
+              <div className="step-number">1</div>
+              <strong style={{ fontSize: '0.95rem', color: 'var(--text-main)', display: 'block', marginBottom: '0.25rem' }}>
+                Get Your License
+              </strong>
+              <p style={{ fontSize: '0.825rem', color: 'var(--text-secondary)', margin: 0 }}>
+                Select your edition and enter your email address.
+              </p>
+            </div>
+
+            <div className="step-card" style={{ background: 'var(--bg-surface-elevated)' }}>
+              <div className="step-number">2</div>
+              <strong style={{ fontSize: '0.95rem', color: 'var(--text-main)', display: 'block', marginBottom: '0.25rem' }}>
+                Download Setup.exe
+              </strong>
+              <p style={{ fontSize: '0.825rem', color: 'var(--text-secondary)', margin: 0 }}>
+                Download your pre-authorized Windows installer.
+              </p>
+            </div>
+
+            <div className="step-card" style={{ background: 'var(--bg-surface-elevated)' }}>
+              <div className="step-number">3</div>
+              <strong style={{ fontSize: '0.95rem', color: 'var(--text-main)', display: 'block', marginBottom: '0.25rem' }}>
+                Double-Click & Run
+              </strong>
+              <p style={{ fontSize: '0.825rem', color: 'var(--text-secondary)', margin: 0 }}>
+                Approve the Windows prompt. License is auto-detected!
+              </p>
+            </div>
+
+            <div className="step-card" style={{ background: 'var(--bg-surface-elevated)' }}>
+              <div className="step-number">4</div>
+              <strong style={{ fontSize: '0.95rem', color: 'var(--text-main)', display: 'block', marginBottom: '0.25rem' }}>
+                Start Typing
+              </strong>
+              <p style={{ fontSize: '0.825rem', color: 'var(--text-secondary)', margin: 0 }}>
+                Select the layout from Windows Language Bar (Win+Space).
+              </p>
+            </div>
+          </div>
+        </div>
+      </section>
     </div>
   );
 }
