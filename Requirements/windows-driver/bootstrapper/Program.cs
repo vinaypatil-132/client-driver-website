@@ -518,9 +518,31 @@ namespace NavBrahmi.Setup
                 string zipPath = Path.Combine(tempDir, filename);
                 Log("Downloading package (" + filename + ")...");
 
-                using (WebClient wc = new WebClient())
+                try
                 {
-                    wc.DownloadFile(downloadUrl, zipPath);
+                    using (WebClient wc = new WebClient())
+                    {
+                        wc.DownloadFile(downloadUrl, zipPath);
+                    }
+                }
+                catch (WebException wex)
+                {
+                    string errDetail = wex.Message;
+                    if (wex.Response != null)
+                    {
+                        try
+                        {
+                            using (StreamReader sr = new StreamReader(wex.Response.GetResponseStream()))
+                            {
+                                string body = sr.ReadToEnd();
+                                if (!string.IsNullOrEmpty(body)) errDetail += " (" + body.Trim() + ")";
+                            }
+                        }
+                        catch { }
+                    }
+                    errorMessage = "Failed to download driver package: " + errDetail;
+                    Log("[ERROR] " + errorMessage);
+                    return false;
                 }
 
                 Progress(65, "Verifying SHA-256 cryptographic checksum...");

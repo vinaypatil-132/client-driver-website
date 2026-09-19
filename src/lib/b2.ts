@@ -103,11 +103,22 @@ export function getB2Config() {
   const endpoint = process.env.B2_ENDPOINT || 'https://s3.us-east-005.backblazeb2.com';
   const region = process.env.B2_REGION || 'us-east-005';
   const bucketName = process.env.B2_BUCKET_NAME || 'keyboard-driver-demo';
-  const keyId = process.env.B2_KEY_ID;
-  const applicationKey = process.env.B2_APPLICATION_KEY;
+  const keyId = process.env.B2_KEY_ID?.trim();
+  const applicationKey = process.env.B2_APPLICATION_KEY?.trim();
 
-  if (!keyId || !applicationKey) {
-    throw new Error('Backblaze B2 credentials (B2_KEY_ID, B2_APPLICATION_KEY) are not configured.');
+  if (!keyId) {
+    throw new Error('Backblaze B2 Key ID (B2_KEY_ID) is not configured in environment variables.');
+  }
+
+  // Backblaze B2 application key IDs must be exactly 25 hex characters starting with 005
+  if (keyId.length !== 25 || !keyId.startsWith('005')) {
+    throw new Error(
+      `Backblaze B2 Key ID (B2_KEY_ID) is malformed: expected a 25-character key starting with '005', but received ${keyId.length} characters. Please verify your B2_KEY_ID environment variable.`
+    );
+  }
+
+  if (!applicationKey) {
+    throw new Error('Backblaze B2 Application Key (B2_APPLICATION_KEY) is not configured in environment variables.');
   }
 
   return {
