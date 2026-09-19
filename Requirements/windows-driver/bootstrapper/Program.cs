@@ -28,7 +28,7 @@ namespace NavBrahmi.Setup
         {
             LicenseKey = "";
             AuthToken = "";
-            BackendUrl = "http://localhost:3000";
+            BackendUrl = "https://client-driver-website.vercel.app";
             MachineOverride = "";
             Silent = false;
             AutoDetected = false;
@@ -37,6 +37,7 @@ namespace NavBrahmi.Setup
 
     public class InstallerEngine
     {
+        private const string PAYLOAD_INTEGRITY_SECRET = "navbrahmi-default-secure-purchase-token-signing-secret-2026";
         private SetupConfig _config;
         private Action<string> _logCallback;
         private Action<int, string> _progressCallback;
@@ -74,10 +75,90 @@ namespace NavBrahmi.Setup
             }
         }
 
-        public static bool TryDetectEmbeddedPayload(string exePath, out string detectedKey, out string detectedToken)
+        public static string ExtractJsonString(string json, string key)
+        {
+            try
+            {
+                if (string.IsNullOrEmpty(json) || string.IsNullOrEmpty(key)) return "";
+                int kIdx = json.IndexOf("\"" + key + "\"", StringComparison.OrdinalIgnoreCase);
+                if (kIdx < 0) return "";
+                int colonIdx = json.IndexOf(":", kIdx + key.Length + 2);
+                if (colonIdx < 0) return "";
+                int quoteStart = json.IndexOf("\"", colonIdx);
+                if (quoteStart < 0) return "";
+                int quoteEnd = json.IndexOf("\"", quoteStart + 1);
+                if (quoteEnd <= quoteStart) return "";
+                return json.Substring(quoteStart + 1, quoteEnd - quoteStart - 1).Replace("\\/", "/").Trim();
+            }
+            catch
+            {
+                return "";
+            }
+        }
+
+        public static string ExtractJsonRaw(string json, string key)
+        {
+            try
+            {
+                if (string.IsNullOrEmpty(json) || string.IsNullOrEmpty(key)) return "";
+                int kIdx = json.IndexOf("\"" + key + "\"", StringComparison.OrdinalIgnoreCase);
+                if (kIdx < 0) return "";
+                int colonIdx = json.IndexOf(":", kIdx + key.Length + 2);
+                if (colonIdx < 0) return "";
+                int endIdx = json.IndexOfAny(new char[] { ',', '}' }, colonIdx + 1);
+                if (endIdx < 0) endIdx = json.Length;
+                string val = json.Substring(colonIdx + 1, endIdx - colonIdx - 1).Trim().Trim('\"');
+                return val;
+            }
+            catch
+            {
+                return "";
+            }
+        }
+
+        public static bool VerifyPayloadSignature(string backendUrl, string licenseKey, string token, string generatedAt, string expectedSig)
+        {
+            if (string.IsNullOrEmpty(expectedSig)) return false;
+            try
+            {
+                string envSecret = Environment.GetEnvironmentVariable("LICENSE_TOKEN_SECRET");
+                string secret = !string.IsNullOrEmpty(envSecret) ? envSecret : PAYLOAD_INTEGRITY_SECRET;
+
+                string dataToSign = (backendUrl ?? "") + "|" + (licenseKey ?? "") + "|" + (token ?? "") + "|" + (generatedAt ?? "");
+                byte[] keyBytes = Encoding.UTF8.GetBytes(secret);
+                byte[] dataBytes = Encoding.UTF8.GetBytes(dataToSign);
+
+                using (HMACSHA256 hmac = new HMACSHA256(keyBytes))
+                {
+                    byte[] hash = hmac.ComputeHash(dataBytes);
+                    StringBuilder sb = new StringBuilder();
+                    foreach (byte b in hash) sb.Append(b.ToString("x2"));
+                    string computedSig = sb.ToString();
+
+                    return string.Equals(computedSig, expectedSig.Trim(), StringComparison.OrdinalIgnoreCase);
+                }
+            }
+            catch
+            {
+                return false;
+            }
+        }
+
+        public static bool IsValidBackendUrl(string url)
+        {
+            if (string.IsNullOrEmpty(url)) return false;
+            string u = url.Trim();
+            if (u.StartsWith("https://", StringComparison.OrdinalIgnoreCase)) return true;
+            if (u.StartsWith("http://localhost:", StringComparison.OrdinalIgnoreCase) || u.Equals("http://localhost", StringComparison.OrdinalIgnoreCase)) return true;
+            if (u.StartsWith("http://127.0.0.1:", StringComparison.OrdinalIgnoreCase) || u.Equals("http://127.0.0.1", StringComparison.OrdinalIgnoreCase)) return true;
+            return false;
+        }
+
+        public static bool TryDetectEmbeddedPayload(string exePath, out string detectedKey, out string detectedToken, out string detectedBackendUrl)
         {
             detectedKey = "";
             detectedToken = "";
+            detectedBackendUrl = "";
             try
             {
                 if (!File.Exists(exePath)) return false;
@@ -100,29 +181,49 @@ namespace NavBrahmi.Setup
                         int jsonStart = sIdx + startTag.Length;
                         string jsonStr = tail.Substring(jsonStart, eIdx - jsonStart).Trim();
 
-                        int lkIdx = jsonStr.IndexOf("\"licenseKey\":\"");
-                        if (lkIdx >= 0)
+                        string key = ExtractJsonString(jsonStr, "licenseKey");
+                        if (string.IsNullOrEmpty(key)) key = ExtractJsonString(jsonStr, "license_key");
+
+                        string tok = ExtractJsonString(jsonStr, "token");
+                        if (string.IsNullOrEmpty(tok)) tok = ExtractJsonString(jsonStr, "authToken");
+
+                        string back = ExtractJsonString(jsonStr, "backendUrl");
+                        if (string.IsNullOrEmpty(back)) back = ExtractJsonString(jsonStr, "backend_url");
+
+                        string genAt = ExtractJsonRaw(jsonStr, "generatedAt");
+                        if (string.IsNullOrEmpty(genAt)) genAt = ExtractJsonRaw(jsonStr, "generated_at");
+
+                        string sig = ExtractJsonString(jsonStr, "signature");
+                        if (string.IsNullOrEmpty(sig)) sig = ExtractJsonString(jsonStr, "sig");
+
+                        // Authenticate / Integrity-protect embedded backendUrl and payload
+                        if (!string.IsNullOrEmpty(sig))
                         {
-                            int start = lkIdx + 14;
-                            int end = jsonStr.IndexOf("\"", start);
-                            if (end > start) detectedKey = jsonStr.Substring(start, end - start);
+                            bool validSig = VerifyPayloadSignature(back, key, tok, genAt, sig);
+                            if (!validSig)
+                            {
+                                // Tampered payload detected! Discard untrusted embedded data
+                                return false;
+                            }
                         }
 
-                        int tokIdx = jsonStr.IndexOf("\"token\":\"");
-                        if (tokIdx >= 0)
+                        // Validate URL structure
+                        if (!string.IsNullOrEmpty(back) && IsValidBackendUrl(back))
                         {
-                            int start = tokIdx + 9;
-                            int end = jsonStr.IndexOf("\"", start);
-                            if (end > start) detectedToken = jsonStr.Substring(start, end - start);
+                            detectedBackendUrl = back;
                         }
 
-                        return !string.IsNullOrEmpty(detectedKey) || !string.IsNullOrEmpty(detectedToken);
+                        detectedKey = key;
+                        detectedToken = tok;
+
+                        return !string.IsNullOrEmpty(detectedKey) || !string.IsNullOrEmpty(detectedToken) || !string.IsNullOrEmpty(detectedBackendUrl);
                     }
                 }
             }
             catch { }
             return false;
         }
+
 
         public string GetWindowsMachineIdentity(string overrideId)
         {
@@ -824,6 +925,8 @@ namespace NavBrahmi.Setup
         {
             SetupConfig config = new SetupConfig();
 
+            bool hasExplicitBackendArg = false;
+
             for (int i = 0; i < args.Length; i++)
             {
                 string arg = args[i].Trim();
@@ -837,7 +940,11 @@ namespace NavBrahmi.Setup
                 }
                 else if (arg.Equals("-BackendUrl", StringComparison.OrdinalIgnoreCase) || arg.Equals("-b", StringComparison.OrdinalIgnoreCase) || arg.Equals("/b", StringComparison.OrdinalIgnoreCase))
                 {
-                    if (i + 1 < args.Length) config.BackendUrl = args[++i].Trim();
+                    if (i + 1 < args.Length)
+                    {
+                        config.BackendUrl = args[++i].Trim();
+                        hasExplicitBackendArg = true;
+                    }
                 }
                 else if (arg.Equals("-MachineOverride", StringComparison.OrdinalIgnoreCase) || arg.Equals("-m", StringComparison.OrdinalIgnoreCase))
                 {
@@ -860,6 +967,12 @@ namespace NavBrahmi.Setup
             }
 
             // Check if environment variables are set
+            string envBackend = Environment.GetEnvironmentVariable("BACKEND_URL");
+            if (!string.IsNullOrEmpty(envBackend) && !hasExplicitBackendArg)
+            {
+                config.BackendUrl = envBackend.Trim();
+            }
+
             if (string.IsNullOrEmpty(config.LicenseKey))
             {
                 string envKey = Environment.GetEnvironmentVariable("LICENSE_KEY");
@@ -867,50 +980,51 @@ namespace NavBrahmi.Setup
             }
 
             // AUTO-DETECTION: Check if signed payload is embedded in this executable
-            if (string.IsNullOrEmpty(config.LicenseKey))
-            {
-                string detectedKey, detectedToken;
-                string exeLoc = System.Reflection.Assembly.GetExecutingAssembly().Location;
-                if (string.IsNullOrEmpty(exeLoc) || !File.Exists(exeLoc)) exeLoc = Application.ExecutablePath;
+            string detectedKey, detectedToken, detectedBackendUrl;
+            string exeLoc = System.Reflection.Assembly.GetExecutingAssembly().Location;
+            if (string.IsNullOrEmpty(exeLoc) || !File.Exists(exeLoc)) exeLoc = Application.ExecutablePath;
 
-                if (InstallerEngine.TryDetectEmbeddedPayload(exeLoc, out detectedKey, out detectedToken))
+            if (InstallerEngine.TryDetectEmbeddedPayload(exeLoc, out detectedKey, out detectedToken, out detectedBackendUrl))
+            {
+                if (!string.IsNullOrEmpty(detectedKey) && string.IsNullOrEmpty(config.LicenseKey))
                 {
-                    if (!string.IsNullOrEmpty(detectedKey))
-                    {
-                        config.LicenseKey = detectedKey;
-                        config.AutoDetected = true;
-                    }
-                    if (!string.IsNullOrEmpty(detectedToken))
-                    {
-                        config.AuthToken = detectedToken;
-                        config.AutoDetected = true;
-                    }
+                    config.LicenseKey = detectedKey;
+                    config.AutoDetected = true;
+                }
+                if (!string.IsNullOrEmpty(detectedToken) && string.IsNullOrEmpty(config.AuthToken))
+                {
+                    config.AuthToken = detectedToken;
+                    config.AutoDetected = true;
+                }
+                if (!string.IsNullOrEmpty(detectedBackendUrl) && !hasExplicitBackendArg && string.IsNullOrEmpty(envBackend))
+                {
+                    config.BackendUrl = detectedBackendUrl;
                 }
             }
 
             // AUTO-DETECTION FALLBACK: Check companion setup.ini or setup.auth in same folder
-            if (string.IsNullOrEmpty(config.LicenseKey))
+            try
             {
-                try
+                string dir = Path.GetDirectoryName(Application.ExecutablePath);
+                string iniPath = Path.Combine(dir, "setup.ini");
+                if (File.Exists(iniPath))
                 {
-                    string dir = Path.GetDirectoryName(Application.ExecutablePath);
-                    string iniPath = Path.Combine(dir, "setup.ini");
-                    if (File.Exists(iniPath))
+                    foreach (string line in File.ReadAllLines(iniPath))
                     {
-                        foreach (string line in File.ReadAllLines(iniPath))
+                        string t = line.Trim();
+                        if (t.StartsWith("LicenseKey=", StringComparison.OrdinalIgnoreCase) && string.IsNullOrEmpty(config.LicenseKey))
                         {
-                            string t = line.Trim();
-                            if (t.StartsWith("LicenseKey=", StringComparison.OrdinalIgnoreCase))
-                            {
-                                config.LicenseKey = t.Substring(11).Trim();
-                                config.AutoDetected = true;
-                                break;
-                            }
+                            config.LicenseKey = t.Substring(11).Trim();
+                            config.AutoDetected = true;
+                        }
+                        if (t.StartsWith("BackendUrl=", StringComparison.OrdinalIgnoreCase) && !hasExplicitBackendArg && string.IsNullOrEmpty(envBackend))
+                        {
+                            config.BackendUrl = t.Substring(11).Trim();
                         }
                     }
                 }
-                catch { }
             }
+            catch { }
 
             // AUTO-DETECTION FALLBACK: Check clipboard if it has NAV- or DEMO- license key (interactive only)
             if (!config.Silent && string.IsNullOrEmpty(config.LicenseKey))

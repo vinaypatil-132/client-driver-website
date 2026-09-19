@@ -112,3 +112,82 @@ export function verifyPurchaseAuthToken(token: string): {
     return { valid: false, error: `Failed to verify token: ${err.message}` };
   }
 }
+
+/**
+ * Creates an HMAC-SHA256 signature for the installer payload embedded in Setup.exe.
+ * Protects backendUrl, licenseKey, token, and generatedAt against client-side tampering.
+ */
+export function createInstallerPayloadSignature(
+  backendUrl: string,
+  licenseKey: string = '',
+  token: string = '',
+  generatedAt: number | string = ''
+): string {
+  const secret =
+    process.env.LICENSE_TOKEN_SECRET ||
+    process.env.LICENSE_SIGNING_PRIVATE_KEY ||
+    'navbrahmi-default-secure-purchase-token-signing-secret-2026';
+  const dataToSign = `${backendUrl}|${licenseKey}|${token}|${generatedAt}`;
+  return crypto.createHmac('sha256', secret).update(dataToSign).digest('hex');
+}
+
+/**
+ * Verifies the HMAC-SHA256 signature of an embedded installer payload.
+ */
+export function verifyInstallerPayloadSignature(
+  backendUrl: string,
+  licenseKey: string = '',
+  token: string = '',
+  generatedAt: number | string = '',
+  signature: string = ''
+): boolean {
+  if (!signature || typeof signature !== 'string') return false;
+  try {
+    const expected = createInstallerPayloadSignature(backendUrl, licenseKey, token, generatedAt);
+    const bufExpected = Buffer.from(expected, 'hex');
+    const bufProvided = Buffer.from(signature, 'hex');
+    if (bufExpected.length !== bufProvided.length) return false;
+    return crypto.timingSafeEqual(bufExpected, bufProvided);
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Resolves the canonical backend URL for Setup.exe downloads.
+ * For local development, allows localhost origins.
+ * For production, strictly enforces configured canonical URL.
+ */
+export function getInstallerBackendUrl(
+  hostHeader?: string | null,
+  nextUrlHost?: string | null
+): string {
+  const host = (hostHeader || nextUrlHost || '').toLowerCase();
+
+  // Allow local development origins
+  if (
+    host.startsWith('localhost:') ||
+    host === 'localhost' ||
+    host.startsWith('127.0.0.1:') ||
+    host === '127.0.0.1'
+  ) {
+    return `http://${host}`;
+  }
+
+  // Production configured APP URL
+  if (process.env.NEXT_PUBLIC_APP_URL) {
+    const configuredUrl = process.env.NEXT_PUBLIC_APP_URL.trim().replace(/\/+$/, '');
+    if (!configuredUrl.includes('localhost') && !configuredUrl.includes('127.0.0.1')) {
+      return configuredUrl;
+    }
+  }
+
+  // Controlled Vercel production deployment fallback
+  if (process.env.VERCEL_URL) {
+    return `https://${process.env.VERCEL_URL.trim().replace(/\/+$/, '')}`;
+  }
+
+  // Canonical production fallback
+  return 'https://client-driver-website.vercel.app';
+}
+

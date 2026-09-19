@@ -23,7 +23,7 @@ param(
     [string]$LicenseKey = $env:LICENSE_KEY,
 
     [Alias("b", "Backend")]
-    [string]$BackendUrl = $env:BACKEND_URL,
+    [string]$BackendUrl = $(if ($env:BACKEND_URL) { $env:BACKEND_URL } else { "https://client-driver-website.vercel.app" }),
 
     [Alias("m", "MachineId")]
     [string]$MachineOverride = $env:DEMO_MACHINE_ID,
@@ -399,8 +399,7 @@ if (-not $LicenseKey) {
 }
 
 if (-not $BackendUrl) {
-    Write-LogError "Backend URL is required. Pass -BackendUrl '<URL>' or set BACKEND_URL environment variable."
-    exit 1
+    $BackendUrl = "https://client-driver-website.vercel.app"
 }
 
 $BackendUrl = $BackendUrl.TrimEnd('/')

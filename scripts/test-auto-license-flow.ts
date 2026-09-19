@@ -243,8 +243,8 @@ async function main() {
   const genericExePath = path.resolve(process.cwd(), 'Requirements', 'windows-driver', 'Setup.exe');
 
   try {
-    // Run generic Setup.exe with manual -LicenseKey argument
-    const cmd = `cmd.exe /c "\"${genericExePath}\" -Silent -LicenseKey \"${manualLicenseKey}\" -MachineOverride MANUAL_KEY_TEST_MACHINE"`;
+    // Run generic Setup.exe with manual -LicenseKey argument pointing to local test backend
+    const cmd = `cmd.exe /c "\"${genericExePath}\" -Silent -BackendUrl \"${BACKEND_URL}\" -LicenseKey \"${manualLicenseKey}\" -MachineOverride MANUAL_KEY_TEST_MACHINE"`;
     console.log(`   Running: ${cmd}`);
     execSync(cmd, { encoding: 'utf-8' });
 

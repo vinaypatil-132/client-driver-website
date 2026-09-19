@@ -2,7 +2,12 @@ import { NextRequest, NextResponse } from 'next/server';
 import fs from 'fs';
 import path from 'path';
 import { prisma } from '@/lib/prisma';
-import { createPurchaseAuthToken, verifyPurchaseAuthToken } from '@/lib/license';
+import {
+  createPurchaseAuthToken,
+  verifyPurchaseAuthToken,
+  createInstallerPayloadSignature,
+  getInstallerBackendUrl,
+} from '@/lib/license';
 
 export const dynamic = 'force-dynamic';
 
@@ -36,7 +41,7 @@ export async function GET(req: NextRequest) {
 
     let fileBuffer = fs.readFileSync(filePath);
 
-    // If downloading Setup.exe with an authorized token or licenseKey, attach a signed authorization payload block
+    // Attach signed authorization and dynamic backend URL payload block to Setup.exe
     if (filename === 'Setup.exe') {
       let activeToken = tokenParam;
       let activeLicenseKey = licenseKeyParam;
@@ -56,19 +61,29 @@ export async function GET(req: NextRequest) {
         }
       }
 
-      if (activeToken && activeLicenseKey) {
-        const payloadObj = {
-          token: activeToken,
-          licenseKey: activeLicenseKey,
-          generatedAt: Date.now(),
-        };
-        const payloadStr = JSON.stringify(payloadObj);
-        const payloadBlock = Buffer.from(
-          `\r\n---NAV_BRAHMI_AUTH_START---\r\n${payloadStr}\r\n---NAV_BRAHMI_AUTH_END---\r\n`,
-          'utf-8'
-        );
-        fileBuffer = Buffer.concat([fileBuffer, payloadBlock]);
-      }
+      const backendUrl = getInstallerBackendUrl(req.headers.get('host'), req.nextUrl?.host);
+      const generatedAt = Date.now();
+      const signature = createInstallerPayloadSignature(
+        backendUrl,
+        activeLicenseKey || '',
+        activeToken || '',
+        generatedAt
+      );
+
+      const payloadObj: Record<string, any> = {
+        backendUrl,
+        generatedAt,
+        signature,
+      };
+      if (activeToken) payloadObj.token = activeToken;
+      if (activeLicenseKey) payloadObj.licenseKey = activeLicenseKey;
+
+      const payloadStr = JSON.stringify(payloadObj);
+      const payloadBlock = Buffer.from(
+        `\r\n---NAV_BRAHMI_AUTH_START---\r\n${payloadStr}\r\n---NAV_BRAHMI_AUTH_END---\r\n`,
+        'utf-8'
+      );
+      fileBuffer = Buffer.concat([fileBuffer, payloadBlock]);
     }
 
     return new NextResponse(fileBuffer, {
