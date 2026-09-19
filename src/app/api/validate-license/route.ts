@@ -75,10 +75,10 @@ export async function POST(req: NextRequest) {
       },
       { status: 200 }
     );
-  } catch (error) {
+  } catch (error: any) {
     console.error('[VALIDATE_LICENSE_ERROR]', error);
     return NextResponse.json(
-      { valid: false, error: 'Internal server error validating license.' },
+      { valid: false, error: error?.message || 'Internal server error validating license.' },
       { status: 500 }
     );
   }
