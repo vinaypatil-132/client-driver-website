@@ -182,12 +182,12 @@ export function getInstallerBackendUrl(
     }
   }
 
-  // Controlled Vercel production deployment fallback
-  if (process.env.VERCEL_URL) {
-    return `https://${process.env.VERCEL_URL.trim().replace(/\/+$/, '')}`;
+  // 2. Vercel project production domain (public production domain)
+  if (process.env.VERCEL_PROJECT_PRODUCTION_URL) {
+    return `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL.trim().replace(/\/+$/, '')}`;
   }
 
-  // Canonical production fallback
+  // 3. Canonical public production domain
   return 'https://client-driver-website.vercel.app';
 }
 
