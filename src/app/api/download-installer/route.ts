@@ -8,7 +8,7 @@ export const dynamic = 'force-dynamic';
 
 export async function GET(req: NextRequest) {
   try {
-    const { searchParams } = new URL(req.url);
+    const searchParams = req.nextUrl ? req.nextUrl.searchParams : new URL(req.url, 'http://localhost').searchParams;
     const fileParam = searchParams.get('file')?.toLowerCase();
     const tokenParam = searchParams.get('token')?.trim();
     const licenseKeyParam = searchParams.get('licenseKey')?.trim();
